@@ -1,0 +1,6 @@
+# The posts are served verbatim over HTTP — keep LF in the repo and in the
+# working tree so what is committed is byte-identical to what is published.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Climbing the Pyramid — Resolution, Blur, and the Coordinates You Lost on the Way Down</title>
+<meta name="description" content="Shrink an image to detect objects at any size and you inherit a staircase of traps: odd sizes that never round-trip, blur versus resolution, half-pixel coordinate drift.">
+<meta name="author" content="Thomas Stephan">
+<link rel="canonical" href="https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html">
+<link rel="alternate" type="application/atom+xml" href="/feed.xml" title="Type-Safe Computer Vision">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Type-Safe Computer Vision">
+<meta property="og:title" content="Climbing the Pyramid — Resolution, Blur, and the Coordinates You Lost on the Way Down">
+<meta property="og:description" content="Shrink an image to detect objects at any size and you inherit a staircase of traps: odd sizes that never round-trip, blur versus resolution, half-pixel coordinate drift.">
+<meta property="og:url" content="https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html">
+<meta property="article:author" content="Thomas Stephan">
+<meta property="article:published_time" content="@@DATE3@@">
+<meta name="twitter:card" content="summary">
+<style>
+  :root {
+    color-scheme: light;
+    --page:        #f9f9f7;
+    --surface:     #fcfcfb;
+    --ink:         #0b0b0b;
+    --ink-2:       #52514e;
+    --muted:       #898781;
+    --hairline:    #e1e0d9;
+    --border:      rgba(11,11,11,0.10);
+    --accent:      #2a78d6;
+    --accent-2:    #eb6834;
+    --bad:         #d03b3b;
+    --good:        #0ca30c;
+    --code-bg:     #f4f3f0;
+    --fill-soft:   #e8f0fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page:      #0d0d0d;
+      --surface:   #1a1a19;
+      --ink:       #ffffff;
+      --ink-2:     #c3c2b7;
+      --muted:     #898781;
+      --hairline:  #2c2c2a;
+      --border:    rgba(255,255,255,0.10);
+      --accent:    #3987e5;
+      --accent-2:  #d95926;
+      --bad:       #e66767;
+      --good:      #0ca30c;
+      --code-bg:   #232322;
+      --fill-soft: #22303f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  article { max-width: 44rem; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  .kicker { color: var(--accent); font-weight: 600; font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font-size: 2.2rem; line-height: 1.15; margin: .4rem 0 0.6rem; letter-spacing: -0.02em; }
+  .dek { color: var(--ink-2); font-size: 1.15rem; margin: 0 0 2.5rem; }
+  h2 { font-size: 1.4rem; margin: 2.6rem 0 0.8rem; letter-spacing: -0.01em; }
+  p  { margin: 0 0 1.1rem; }
+  figure { margin: 1.8rem 0; }
+  figure svg { display: block; width: 100%; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  figcaption { color: var(--muted); font-size: .85rem; margin-top: .55rem; line-height: 1.5; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.6;
+  }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  p > code, li > code { background: var(--code-bg); border-radius: 4px; padding: .08em .35em; font-size: .85em; }
+  .cmt  { color: var(--muted); }
+  .kw   { color: var(--accent); font-weight: 600; }
+  .ty   { color: #1baf7a; }
+  .err  { color: var(--bad); }
+  .pull {
+    border-left: 3px solid var(--accent); padding: .2rem 0 .2rem 1.1rem;
+    margin: 1.8rem 0; color: var(--ink-2); font-size: 1.12rem; font-style: italic;
+  }
+  .footer-nav { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--hairline); color: var(--muted); font-size: .85rem; }
+  .footer-nav a { color: var(--accent); text-decoration: none; }
+  .footer-nav a:hover { text-decoration: underline; }
+  .svg-ink   { fill: var(--ink); }
+  .svg-ink2  { fill: var(--ink-2); }
+  .svg-muted { fill: var(--muted); }
+  text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .dek { margin-bottom: 0.9rem; }
+  .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
+  .byline a { color: var(--accent); text-decoration: none; }
+  .byline a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<article>
+
+<p class="kicker">Type-Safe Computer Vision · Part 3 of 3</p>
+<h1>Climbing the Pyramid</h1>
+<p class="dek">To find an object at any size, you shrink the image until the object fits your detector. Simple idea, beautiful theory — and in practice a staircase of traps: sizes that stop matching, two “scales” that aren’t the same thing, and coordinates that quietly drift half a pixel per step.</p>
+<p class="byline">Thomas Stephan · <time datetime="@@DATE3@@">@@HUMAN3@@</time> · <a href="/">Series index</a></p>
+
+<h2>Why pyramids exist at all</h2>
+
+<p>Your detector looks for a face 40 pixels wide. The face in the photo is 400 pixels wide. Nobody retrains the detector — you shrink the <em>image</em>: half size, quarter size, eighth size, and run the same detector on every level. Stack the levels and you get the most iconic data structure in computer vision:</p>
+
+<figure>
+<svg viewBox="0 0 680 300" role="img" aria-label="An image pyramid: four stacked levels of halving size, with the same detector box finding a large object only at the smallest level">
+  <g>
+    <rect x="120" y="190" width="320" height="88" rx="6" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="180" y="120" width="200" height="58" rx="5" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="220" y="72"  width="120" height="36" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="245" y="40"  width="70"  height="22" rx="3" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <!-- the object: a circle that only fits the detector at level 2 -->
+    <circle cx="280" cy="234" r="34" fill="var(--accent)" opacity="0.85"/>
+    <circle cx="280" cy="149" r="21" fill="var(--accent)" opacity="0.85"/>
+    <circle cx="280" cy="90"  r="13" fill="var(--accent)" opacity="0.85"/>
+    <circle cx="280" cy="51"  r="8"  fill="var(--accent)" opacity="0.85"/>
+    <!-- detector box, fixed size, drawn at each level; fits at level 2 -->
+    <rect x="264" y="74" width="32" height="32" fill="none" stroke="var(--accent-2)" stroke-width="2.5" rx="3"/>
+    <text x="352" y="94" class="svg-ink2" font-size="12.5">fixed-size detector fits here ✓</text>
+    <!-- labels -->
+    <g class="svg-muted" font-size="12" text-anchor="end">
+      <text x="108" y="238">level 0 — full resolution</text>
+      <text x="168" y="153">level 1 — ½</text>
+      <text x="208" y="94">level 2 — ¼</text>
+      <text x="233" y="55">level 3 — ⅛</text>
+    </g>
+  </g>
+</svg>
+<figcaption>Fig. 1 — An image pyramid. The detector never changes size; the world does. Somewhere on the staircase, every object passes through the size your detector understands.</figcaption>
+</figure>
+
+<p>Each level is made by blurring the previous one a little (so shrinking doesn’t alias) and throwing away every second pixel. Two operations — <em>blur</em>, <em>shrink</em> — done together, over and over. Hold that thought: <strong>two</strong> operations. It becomes important in a minute.</p>
+
+<h2>Trap 1: the staircase doesn’t come back up</h2>
+
+<p>First trap, and the single most-asked pyramid question on every programming forum: take a 101-pixel-wide image down one level, then bring it back up.</p>
+
+<figure>
+<svg viewBox="0 0 680 250" role="img" aria-label="Downscaling 101 pixels gives 50, doubling back up gives 100, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
+  <g font-size="14">
+    <rect x="50"  y="60" width="202" height="70" rx="6" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <text x="151" y="100" text-anchor="middle" class="mono svg-ink">101 px</text>
+    <path d="M262 95 L318 95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <text x="290" y="84" text-anchor="middle" class="svg-muted" font-size="11.5">÷2</text>
+    <rect x="328" y="78" width="100" height="35" rx="5" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <text x="378" y="101" text-anchor="middle" class="mono svg-ink">50 px</text>
+    <path d="M438 95 L494 95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <text x="466" y="84" text-anchor="middle" class="svg-muted" font-size="11.5">×2</text>
+    <rect x="504" y="60" width="150" height="70" rx="6" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="579" y="100" text-anchor="middle" class="mono" fill="var(--bad)">100 px ≠ 101</text>
+  </g>
+  <text x="340" y="180" text-anchor="middle" class="mono" fill="var(--bad)" font-size="13.5">error: (-209) sizes of input arguments do not match</text>
+  <text x="340" y="208" text-anchor="middle" class="svg-ink2" font-size="12.5">…or worse: no error, and your difference image is silently misaligned.</text>
+  <defs><marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+</svg>
+<figcaption>Fig. 2 — Half of 101 is not a whole number. Whichever way the library rounds, the down-step forgets whether its parent was odd — so the up-step reconstructs the wrong size. Every tutorial demo uses 512×512 and works; your first real photo doesn’t.</figcaption>
+</figure>
+
+<p>Why does anyone go back <em>up</em>? Because the most useful pyramids are built from differences: subtract the blurry upsampled level from the sharper one above it and you isolate the detail that lives at that scale — the basis of seamless image blending, HDR fusion, and half of classical vision. And subtraction needs both images to be <em>the same size</em>. On any image whose dimensions aren’t a power of two, the naive round trip breaks — loudly if you’re lucky, silently if you’re not. One mainstream Python library shipped a broken version of exactly this construction <em>for years</em>; nobody noticed, because there was no test that rebuilt the original image.</p>
+
+<p>The root cause is almost embarrassing: <code>shrink()</code> and <code>grow()</code> are two independent, stateless functions. Neither remembers the parent’s size. The information “101 was odd” falls into the gap between two function calls.</p>
+
+<h2>Trap 2: there are two ladders, not one</h2>
+
+<p>Remember the two operations — blur and shrink? Most libraries fuse them into one function and call the result “scale.” But they are <em>different axes</em>, and you can move along each independently:</p>
+
+<figure>
+<svg viewBox="0 0 680 420" role="img" aria-label="A two-by-two matrix. Horizontal axis: resolution shrinks. Vertical axis: blur grows. Top-left original sharp image; top-right shrink only (mipmap); bottom-left blur only (scale stack); bottom-right both (Gaussian pyramid).">
+  <defs>
+    <filter id="soft1"><feGaussianBlur stdDeviation="1.6"/></filter>
+    <filter id="soft2"><feGaussianBlur stdDeviation="3.2"/></filter>
+    <pattern id="tex" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="var(--fill-soft)"/>
+      <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+      <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+    </pattern>
+  </defs>
+  <!-- axes -->
+  <path d="M110 60 L610 60" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr4)"/>
+  <text x="360" y="46" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600">resolution shrinks →</text>
+  <path d="M84 86 L84 386" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr4)"/>
+  <text x="64" y="236" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600" transform="rotate(-90 64 236)">blur grows →</text>
+  <defs><marker id="arr4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+  <!-- top-left: original -->
+  <g>
+    <rect x="120" y="86" width="160" height="110" fill="url(#tex)" stroke="var(--border)"/>
+    <text x="200" y="216" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">original</text>
+  </g>
+  <!-- top-right: shrink only -->
+  <g>
+    <rect x="420" y="86" width="80" height="55" fill="url(#tex)" stroke="var(--border)"/>
+    <text x="460" y="216" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">shrink only</text>
+    <text x="460" y="234" text-anchor="middle" class="svg-muted" font-size="11.5">GPU mipmaps · “stride” in deep nets</text>
+  </g>
+  <!-- bottom-left: blur only -->
+  <g>
+    <rect x="120" y="266" width="160" height="110" fill="url(#tex)" filter="url(#soft2)" stroke="var(--border)"/>
+    <rect x="120" y="266" width="160" height="110" fill="none" stroke="var(--border)"/>
+    <text x="200" y="396" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">blur only — “scale stack”</text>
+    <text x="200" y="414" text-anchor="middle" class="svg-muted" font-size="11.5">blob detection · registration (often the best choice!)</text>
+  </g>
+  <!-- bottom-right: both -->
+  <g>
+    <rect x="420" y="294" width="80" height="55" fill="url(#tex)" filter="url(#soft1)" stroke="var(--border)"/>
+    <rect x="420" y="294" width="80" height="55" fill="none" stroke="var(--border)"/>
+    <text x="460" y="396" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">both — Gaussian pyramid</text>
+    <text x="460" y="414" text-anchor="middle" class="svg-muted" font-size="11.5">the “classic” — but only one cell of four</text>
+  </g>
+</svg>
+<figcaption>Fig. 3 — Blur and shrink are orthogonal. All four combinations exist and all four are used in serious systems. A library with a single <code>buildPyramid()</code> can express exactly one of them — and gives you no word for the other three.</figcaption>
+</figure>
+
+<p>This distinction has a proper name. The blur axis is called <strong>scale-space</strong>: how much fine detail has been smoothed away, measured by the blur radius σ (sigma) <em>in pixels of the original image</em>. The shrink axis is just <strong>resolution</strong>: how many samples you kept. A GPU mipmap shrinks without caring about σ. A blob detector sweeps σ without shrinking at all. The classic Gaussian pyramid does both in lock-step — which is precisely why generations of developers learned they were one thing.</p>
+
+<p>The most famous algorithm in classical vision — SIFT, which finds keypoints you can recognize again in another photo — needs <em>both axes at once</em>, as a grid: within each “octave” it keeps resolution fixed and steps the blur; between octaves it halves the resolution. The bookkeeping looks like this:</p>
+
+<figure>
+<svg viewBox="0 0 680 330" role="img" aria-label="The SIFT scale space as a grid: three octaves as rows with shrinking image width, three blur layers as columns; each cell labeled with its sigma value, growing along both axes.">
+  <text x="386" y="34" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600">blur steps within an octave →</text>
+  <text x="40" y="190" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600" transform="rotate(-90 40 190)">octaves: resolution halves ↓</text>
+  <!-- octave 0: full width cells -->
+  <g>
+    <text x="80" y="86" class="svg-muted" font-size="12" text-anchor="end" >o0</text>
+    <rect x="95"  y="56" width="170" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="285" y="56" width="170" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="475" y="56" width="170" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <g class="mono svg-ink" font-size="13" text-anchor="middle">
+      <text x="180" y="87">σ = 1.6</text>
+      <text x="370" y="87">σ = 2.0</text>
+      <text x="560" y="87">σ = 2.5</text>
+    </g>
+  </g>
+  <!-- octave 1 -->
+  <g>
+    <text x="80" y="166" class="svg-muted" font-size="12" text-anchor="end">o1</text>
+    <rect x="95"  y="136" width="120" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="285" y="136" width="120" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="475" y="136" width="120" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <g class="mono svg-ink" font-size="13" text-anchor="middle">
+      <text x="155" y="167">σ = 3.2</text>
+      <text x="345" y="167">σ = 4.0</text>
+      <text x="535" y="167">σ = 5.1</text>
+    </g>
+  </g>
+  <!-- octave 2 -->
+  <g>
+    <text x="80" y="246" class="svg-muted" font-size="12" text-anchor="end">o2</text>
+    <rect x="95"  y="216" width="80" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="285" y="216" width="80" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="475" y="216" width="80" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <g class="mono svg-ink" font-size="13" text-anchor="middle">
+      <text x="135" y="247">σ = 6.4</text>
+      <text x="325" y="247">σ = 8.1</text>
+      <text x="515" y="247">σ = 10.2</text>
+    </g>
+  </g>
+  <text x="370" y="302" text-anchor="middle" class="svg-muted" font-size="12.5">a 2-D grid: (octave, layer) — with σ growing smoothly across the whole thing: σ(o, l) = 1.6 · 2^(o + l/3)</text>
+</svg>
+<figcaption>Fig. 4 — SIFT’s scale space is a <em>grid</em>, not a chain. Same resolution across each row, same blur ratio down each column. Most libraries flatten this into one array and make you compute <code>octave·(S+3)+layer</code> by hand — an off-by-one-octave bug generator with decades of forum history.</figcaption>
+</figure>
+
+<p>And how does the most-used library on Earth report which cell of that grid a keypoint came from? It packs the octave, the layer, <em>and</em> a sub-scale fraction into a single 32-bit integer. Users see <code>keypoint.octave == 10420482</code>, file a bug, and are pointed to an unexported internal function whose decode ritual involves masking the low byte and manually sign-extending it, because octave −1 is valid. That bug report has been open, as “works as intended,” for a decade.</p>
+
+<h2>Trap 3: the way back down is off by half a pixel</h2>
+
+<p>You found your object at level 3. Wonderful. Now: <em>where is it in the original image?</em> Everyone writes the same line: <code>x_full = x_level * 8</code>. And everyone ships a subtle lie, because that formula assumes the two pixel grids are aligned at their corners — and depending on how the library shrinks, they usually aren’t:</p>
+
+<figure>
+<svg viewBox="0 0 680 300" role="img" aria-label="A fine pixel grid with dots at pixel centers, and a coarse grid overlaid. Depending on the downsampling convention, coarse pixel centers sit either exactly on even fine centers or half a pixel off. An arrow marks the half-pixel offset.">
+  <!-- fine grid: 12 cells of 44px starting x=60,y=70; show one row band -->
+  <g>
+    <text x="60" y="52" class="svg-ink" font-size="13" font-weight="600">full-resolution grid</text>
+    <g stroke="var(--hairline)">
+      <rect x="60" y="66" width="528" height="44" fill="none"/>
+      <line x1="104" y1="66" x2="104" y2="110"/><line x1="148" y1="66" x2="148" y2="110"/>
+      <line x1="192" y1="66" x2="192" y2="110"/><line x1="236" y1="66" x2="236" y2="110"/>
+      <line x1="280" y1="66" x2="280" y2="110"/><line x1="324" y1="66" x2="324" y2="110"/>
+      <line x1="368" y1="66" x2="368" y2="110"/><line x1="412" y1="66" x2="412" y2="110"/>
+      <line x1="456" y1="66" x2="456" y2="110"/><line x1="500" y1="66" x2="500" y2="110"/>
+      <line x1="544" y1="66" x2="544" y2="110"/>
+    </g>
+    <g fill="var(--muted)">
+      <circle cx="82"  cy="88" r="3"/><circle cx="126" cy="88" r="3"/><circle cx="170" cy="88" r="3"/>
+      <circle cx="214" cy="88" r="3"/><circle cx="258" cy="88" r="3"/><circle cx="302" cy="88" r="3"/>
+      <circle cx="346" cy="88" r="3"/><circle cx="390" cy="88" r="3"/><circle cx="434" cy="88" r="3"/>
+      <circle cx="478" cy="88" r="3"/><circle cx="522" cy="88" r="3"/><circle cx="566" cy="88" r="3"/>
+    </g>
+  </g>
+  <!-- convention A -->
+  <g>
+    <text x="60" y="152" class="svg-ink" font-size="13" font-weight="600">half-res grid, convention A: keep every 2nd sample</text>
+    <rect x="60" y="162" width="528" height="44" fill="none" stroke="var(--hairline)"/>
+    <g stroke="var(--hairline)">
+      <line x1="148" y1="162" x2="148" y2="206"/><line x1="236" y1="162" x2="236" y2="206"/>
+      <line x1="324" y1="162" x2="324" y2="206"/><line x1="412" y1="162" x2="412" y2="206"/>
+      <line x1="500" y1="162" x2="500" y2="206"/>
+    </g>
+    <g fill="var(--accent)">
+      <circle cx="82"  cy="184" r="4"/><circle cx="170" cy="184" r="4"/><circle cx="258" cy="184" r="4"/>
+      <circle cx="346" cy="184" r="4"/><circle cx="434" cy="184" r="4"/><circle cx="522" cy="184" r="4"/>
+    </g>
+    <text x="598" y="189" class="mono svg-ink2" font-size="12">x·2 ✓</text>
+  </g>
+  <!-- convention B -->
+  <g>
+    <text x="60" y="248" class="svg-ink" font-size="13" font-weight="600">half-res grid, convention B: average 2×2 blocks</text>
+    <rect x="60" y="258" width="528" height="44" fill="none" stroke="var(--hairline)"/>
+    <g stroke="var(--hairline)">
+      <line x1="148" y1="258" x2="148" y2="302"/><line x1="236" y1="258" x2="236" y2="302"/>
+      <line x1="324" y1="258" x2="324" y2="302"/><line x1="412" y1="258" x2="412" y2="302"/>
+      <line x1="500" y1="258" x2="500" y2="302"/>
+    </g>
+    <g fill="var(--accent-2)">
+      <circle cx="104" cy="280" r="4"/><circle cx="192" cy="280" r="4"/><circle cx="280" cy="280" r="4"/>
+      <circle cx="368" cy="280" r="4"/><circle cx="456" cy="280" r="4"/><circle cx="544" cy="280" r="4"/>
+    </g>
+    <path d="M82 268 L100 276" stroke="var(--bad)" stroke-width="1.8" marker-end="url(#arr5)"/>
+    <text x="598" y="285" class="mono" fill="var(--bad)" font-size="12">x·2 + 0.5 ✗</text>
+    <defs><marker id="arr5" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--bad)"/></marker></defs>
+  </g>
+</svg>
+<figcaption>Fig. 5 — Where is the <em>center</em> of coarse pixel 0? If the library keeps every second sample (A), it sits exactly on a full-res pixel and <code>x·2</code> is right. If it averages 2×2 blocks (B), it sits <em>between</em> them, and the honest map is <code>x·2 + 0.5</code>. Libraries disagree, few document which they do — and the error compounds: half a pixel per level is 4 pixels of drift by level 3.</figcaption>
+</figure>
+
+<p>If “half a pixel” sounds precious, consider that whole framework ecosystems fought a multi-year war over exactly this — the infamous <code>align_corners</code> flag, whose default was wrong in one major deep-learning framework for years and whose semantics still differ between the ones you use today. Sub-pixel keypoints, optical flow, stereo — the entire point of these algorithms is precision <em>below</em> one pixel. A convention mismatch eats the whole error budget before your algorithm even starts.</p>
+
+<p class="pull">Three traps, one pattern: the pyramid’s geometry — parent sizes, blur levels, grid offsets — lives in nobody’s data structure. It lives in comments, conventions, and folklore.</p>
+
+<h2>Give the geometry a home</h2>
+
+<p>None of these are logic bugs. The blur was correct, the subsampling was correct, the multiplication by 8 was multiplication by 8. What failed, every time, was <em>unrecorded meaning</em>: an odd parent size the down-step forgot, a σ nobody wrote down, a grid offset that existed only in the implementer’s head. Type bugs — the kind a type system can refuse to compile.</p>
+
+<p>Here is the design <a href="https://crates.io/crates/fovea">fovea</a> is building toward (pyramid support is in active design as this series goes out — the pixel-type machinery from parts 1 and 2 ships today). The principle: <strong>a level is not a bare image; it is an image that knows its own geometry.</strong></p>
+
+<pre><code><span class="cmt">// Going back up names its target — trap 1 cannot compile into existence:</span>
+<span class="kw">let</span> back_up = pyr_up(&amp;level_below, level_above.size())?;  <span class="cmt">// impossible parent size? a value, not a crash</span>
+<span class="cmt">// and a Laplacian pyramid reconstructs from its own remembered sizes:</span>
+<span class="kw">let</span> restored = pyramid.reconstruct();   <span class="cmt">// tested: restored ≈ original, odd sizes included</span>
+
+<span class="cmt">// The two ladders are two different capabilities — trap 2 gets vocabulary:</span>
+<span class="kw">let</span> sigma = layer.sigma();          <span class="cmt">// blur, in base-image pixels (ScaleLevel)</span>
+<span class="kw">let</span> step  = level.pixel_distance(); <span class="cmt">// sampling stride vs. base image (Decimated)</span>
+<span class="cmt">// A mipmap-style pyramid simply doesn’t offer .sigma() — asking is a compile error,</span>
+<span class="cmt">// because that number would be a lie. SIFT’s grid is its own type, indexed (octave, layer)</span>
+<span class="cmt">// — no more octave·(S+3)+layer arithmetic, no integers with three values packed inside.</span>
+
+<span class="cmt">// And coming down is an exact, named mapping — trap 3 has one implementation, not N:</span>
+<span class="kw">let</span> p_full = level.to_base(p_local);
+<span class="cmt">// = origin_offset + pixel_distance · p_local — the half-pixel term is part of the</span>
+<span class="cmt">// contract of *how this level was built*, not folklore. Keypoints carry a continuous</span>
+<span class="cmt">// σ in base-image units. Nothing to unpack, nothing to sign-extend.</span></code></pre>
+
+<p>And because this is the same library from part 2: building any of it from a gamma-encoded image is still a compile error. A pyramid is blurs all the way down — every level would repeat the 128-vs-188 mistake, so the type system demands linear light at the front door.</p>
+
+<h2>Why this matters more every year</h2>
+
+<p>Across three articles we met three bugs: swapped channels, gamma-blind averaging, and pyramid geometry lost between function calls. None of them was a wrong algorithm. All of them were <em>wrong assumptions flowing silently between correct functions</em> — and all of them are reproduced by the thousand in forums, tutorials, and now in the training data of every coding agent that writes vision code. The agents are fast, tireless, and trained on twenty years of examples that average sRGB bytes and multiply by <code>2^octave</code>.</p>
+
+<p>Vision systems are leaving the demo notebook and entering factories, labs, vehicles, and instruments, where a wrong image is a lost measurement or a missed defect. We cannot review our way out at that scale — but we can make the mistakes unrepresentable. Write the meaning into the types: what order the channels are, whether the values are light, what geometry a level carries. Then every one of these classics — human-written or machine-written — stops being a debugging session and becomes a red squiggle.</p>
+
+<p>The compiler was always willing to check our assumptions. We just had to write them down.</p>
+
+<div class="footer-nav">
+  <strong>Type-Safe Computer Vision</strong> — a series about bugs the compiler could have caught:
+  <a href="01-rgb-bgr-the-blue-face-bug.html">Part 1: The Blue Face Bug — RGB vs BGR</a> ·
+  <a href="02-gamma-blind-interpolation.html">Part 2: 128 Is Not the Middle — gamma and interpolation</a> ·
+  Part 3: Climbing the Pyramid
+  <br><br>
+  <a href="/">Series index</a> · <a href="/feed.xml">Atom feed</a> · <a href="https://github.com/karhunen-loeve/fovea">fovea on GitHub</a>
+</div>
+
+</article>
+</body>
+</html>
