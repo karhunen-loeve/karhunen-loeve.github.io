@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layer 0 — Thomas Stephan</title>
+<meta name="description" content="Thomas Stephan — software architect and computer vision engineer. Hardening computer vision with a proper type system.">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:      #08090c;
+    --case:    #12141a;
+    --case-2:  #0c0e12;
+    --cap:     #2b2f38;
+    --cap-hi:  #363b45;
+    --cap-lo:  #1b1e25;
+    --skirt:   #0d0f14;
+    --legend:  #d7dce6;
+    --legend-2:#8b93a3;
+    --ink:     #e7eaf1;
+    --ink-2:   #98a0b0;
+    --ink-3:   #5d6575;
+    --acc:     #4dffc3;
+    --acc-2:   #ff5fa8;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15.5px/1.7 var(--mono); overflow-x: hidden;
+    background-image: radial-gradient(70rem 40rem at 50% -10%, rgba(77,255,195,.06), transparent 70%);
+  }
+  main { max-width: 60rem; margin: 0 auto; padding: 2.5rem 1.3rem 7rem; }
+
+  /* ---------- shared keycap ---------- */
+  .cap {
+    position: relative; display: block; border: 0; border-radius: 7px;
+    background: linear-gradient(180deg, var(--cap) 0%, var(--cap-lo) 100%);
+    box-shadow: 0 6px 0 var(--skirt), 0 9px 18px rgba(0,0,0,.55),
+                inset 0 1px 0 rgba(255,255,255,.07);
+    transition: transform .09s ease-out, box-shadow .09s ease-out, background .2s;
+    text-decoration: none; color: inherit; cursor: pointer;
+    font-family: var(--mono);
+  }
+  .cap::before {
+    content: ""; position: absolute; inset: 4px 4px 9px; border-radius: 5px;
+    background: linear-gradient(180deg, var(--cap-hi), var(--cap));
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+  .cap > * { position: relative; z-index: 1; }
+  .cap:hover { background: linear-gradient(180deg, #31353f, #1f232a); }
+  .cap.down, .cap:active {
+    transform: translateY(5px);
+    box-shadow: 0 1px 0 var(--skirt), 0 3px 7px rgba(0,0,0,.6),
+                inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .cap:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+  /* ---------- board + underglow ---------- */
+  .board {
+    position: relative; background: linear-gradient(160deg, var(--case), var(--case-2));
+    border: 1px solid #1c1f27; border-radius: 14px;
+    padding: 1.5rem 1.5rem 1.7rem; margin-bottom: 3.5rem;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .board::after {
+    content: ""; position: absolute; left: 3%; right: 3%; top: 22%; bottom: -10px;
+    z-index: -1; border-radius: 20px; opacity: .5;
+    background: conic-gradient(from 0deg, #ff3d81, #ffb03d, #4dffa1, #3db4ff, #a03dff, #ff3d81);
+    filter: blur(26px);
+    animation: glow 11s linear infinite;
+  }
+  @keyframes glow { to { filter: blur(26px) hue-rotate(360deg); } }
+  .plate {
+    display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
+    margin: 0 0 1.4rem; font-size: .64rem; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .plate .sp { flex: 1; }
+  .plate b { color: var(--acc); font-weight: 400; }
+
+  /* ---------- hero: artisan cap + name in caps ---------- */
+  .hero { display: flex; gap: 2rem; align-items: flex-start; flex-wrap: wrap; }
+  .artisan {
+    flex: none; width: 168px; border-radius: 12px; padding: 7px 7px 13px;
+    background: linear-gradient(180deg, #343945, #1e222a);
+    box-shadow: 0 9px 0 #0c0e13, 0 14px 26px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.09);
+    transform: perspective(700px) rotateX(11deg) rotateZ(-1.5deg);
+  }
+  .artisan img {
+    display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 7px;
+    filter: contrast(1.06) saturate(.95);
+  }
+  .artisan .gloss {
+    position: relative; margin-top: -34%; height: 34%; border-radius: 0 0 7px 7px;
+    background: linear-gradient(200deg, rgba(255,255,255,.13), transparent 60%);
+    pointer-events: none;
+  }
+  .artisan .tag {
+    display: block; margin-top: .5rem; text-align: center;
+    font-size: .55rem; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .namebox { flex: 1 1 22rem; }
+  .keys { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 1.1rem; }
+  .keys .cap {
+    width: 46px; height: 46px; display: grid; place-items: center;
+    font-size: .95rem; font-weight: 700; color: var(--legend); letter-spacing: 0;
+  }
+  .keys .cap.gap { width: 26px; background: none; box-shadow: none; }
+  .keys .cap.gap::before { display: none; }
+  .role { font-size: .68rem; letter-spacing: .2em; text-transform: uppercase; color: var(--acc); margin: 0 0 1.2rem; }
+  .namebox p { color: var(--ink-2); margin: 0 0 .9rem; font-size: .93rem; max-width: 52ch; }
+  .namebox p em { color: var(--ink); font-style: normal; border-bottom: 1px solid var(--acc); }
+
+  /* ---------- spec sheet ---------- */
+  .spec {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 1px; background: #1c1f27; border: 1px solid #1c1f27; border-radius: 8px;
+    overflow: hidden; margin: 2.2rem 0 0;
+  }
+  .spec div { background: #14161c; padding: .9rem 1rem; }
+  .spec dt { font-size: .56rem; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3); }
+  .spec dd { margin: .25rem 0 0; font-size: .84rem; color: var(--legend); }
+
+  /* ---------- sections ---------- */
+  .sec { margin-bottom: 3.4rem; }
+  .sec h2 {
+    font-size: .7rem; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--ink-2); margin: 0 0 .5rem; display: flex; align-items: center; gap: .7rem;
+  }
+  .sec h2::after { content: ""; flex: 1; height: 1px; background: #1c1f27; }
+  .sec .lede { color: var(--ink-3); font-size: .88rem; margin: 0 0 1.5rem; max-width: 62ch; }
+
+  /* ---------- post keycaps ---------- */
+  .rowkeys { display: grid; gap: .9rem; }
+  .cap.wide {
+    display: grid; grid-template-columns: 3.6rem 1fr auto; gap: 1.2rem; align-items: center;
+    padding: 1.2rem 1.4rem 1.5rem;
+  }
+  @media (max-width: 44rem) { .cap.wide { grid-template-columns: 1fr; gap: .5rem; } }
+  .cap.wide .kc {
+    font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .cap.wide .kc b { display: block; font-size: 1.2rem; color: var(--acc); letter-spacing: .04em; }
+  .cap.wide h3 { font: 700 1.1rem/1.35 var(--mono); letter-spacing: -.01em; margin: 0 0 .3rem; color: var(--legend); }
+  .cap.wide p { margin: 0 0 .35rem; font-size: .86rem; color: var(--legend-2); }
+  .cap.wide .sub { font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .cap.wide .press { font-size: .58rem; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); text-align: right; }
+  @media (max-width: 44rem) { .cap.wide .press { text-align: left; } }
+
+  .cap.blank { cursor: default; opacity: .58; }
+  .cap.blank:hover { background: linear-gradient(180deg, var(--cap), var(--cap-lo)); }
+  .cap.blank:active { transform: none; box-shadow: 0 6px 0 var(--skirt), 0 9px 18px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.07); }
+  .cap.blank .kc b { color: var(--ink-3); }
+  .cap.blank h3 { color: var(--legend-2); }
+
+  .hint {
+    margin: 0 0 2.4rem; font-size: .64rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .hint kbd {
+    display: inline-block; padding: .2rem .45rem; margin: 0 .12rem; border-radius: 4px;
+    background: #1e222a; box-shadow: 0 2px 0 #0d0f14, inset 0 1px 0 rgba(255,255,255,.06);
+    font: 700 .68rem/1 var(--mono); color: var(--legend);
+  }
+
+  footer {
+    border-top: 1px solid #1c1f27; padding-top: 1.4rem;
+    font-size: .66rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); line-height: 2.2;
+  }
+  footer a { color: var(--acc); text-decoration: none; }
+  footer a:hover { color: var(--ink); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .board::after { animation: none; }
+    .cap { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <div class="board">
+    <div class="plate">
+      <span><b>LAYER 0</b></span>
+      <span>65 % · hot-swap · rust firmware</span>
+      <span class="sp"></span>
+      <span>karhunen-loeve</span>
+    </div>
+
+    <div class="hero">
+      <div class="artisan">
+        <img src="../images/profile.jpg" alt="Portrait of Thomas Stephan">
+        <div class="gloss"></div>
+        <span class="tag">artisan · 1 of 1</span>
+      </div>
+
+      <div class="namebox">
+        <div class="keys" id="keys" aria-hidden="true">
+          <span class="cap">T</span><span class="cap">H</span><span class="cap">O</span><span class="cap">M</span><span class="cap">A</span><span class="cap">S</span>
+          <span class="cap gap"></span>
+          <span class="cap">S</span><span class="cap">T</span><span class="cap">E</span><span class="cap">P</span><span class="cap">H</span><span class="cap">A</span><span class="cap">N</span>
+        </div>
+        <h1 style="position:absolute;left:-9999px">Thomas Stephan</h1>
+        <p class="role">Dr.-Ing. · software architect · team lead · computer vision</p>
+        <p>My doctorate was on restoring underwater images — modelling what light does on
+           its way from a scene to a sensor when the medium in between refuses to
+           cooperate. Since 2016 I write C++/Qt for molecular beam epitaxy systems, where
+           a wrong number does not throw an exception, it grows the wrong crystal.</p>
+        <p>Almost every expensive bug I have chased was never really a bug: a channel
+           order nobody wrote down, a gamma curve everyone assumed, a pyramid level that
+           drifted half a pixel. I want that class of mistake to be
+           <em>unrepresentable</em> — the meaning of a number encoded in its type, so the
+           compiler objects on the line where it happens.</p>
+      </div>
+    </div>
+
+    <dl class="spec">
+      <div><dt>doctorate</dt><dd>Dr.-Ing., KIT 2016</dd></div>
+      <div><dt>switches</dt><dd>linear · 45 g · type-checked</dd></div>
+      <div><dt>daily driver</dt><dd>C++23 / Qt · since 2016</dd></div>
+      <div><dt>side project</dt><dd>Rust · fovea</dd></div>
+      <div><dt>team lead since</dt><dd>2020</dd></div>
+      <div><dt>also on the desk</dt><dd>volleyball · choir · home automation</dd></div>
+    </dl>
+  </div>
+
+  <p class="hint">Press <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> to jump to a post — or just click the caps.</p>
+
+  <section class="sec">
+    <h2>bound keys · published</h2>
+    <p class="lede">Three classic computer vision bugs that have each cost the field
+      twenty years. None of them is a logic bug. Every one is a type bug — correct
+      functions exchanging values whose meaning was never written down.</p>
+
+    <div class="rowkeys">
+      <a class="cap wide" data-key="1" href="../01-rgb-bgr-the-blue-face-bug.html">
+        <span class="kc">part 01<b>F1</b></span>
+        <div>
+          <h3>The Blue Face Bug</h3>
+          <p>Your camera says blue-green-red. Your model says red-green-blue. The bytes in between say nothing at all.</p>
+          <span class="sub">channel order · Bgr8 · ColorSwap</span>
+        </div>
+        <span class="press">press 1</span>
+      </a>
+
+      <a class="cap wide" data-key="2" href="../02-gamma-blind-interpolation.html">
+        <span class="kc">part 02<b>F2</b></span>
+        <div>
+          <h3>128 Is Not the Middle</h3>
+          <p>Average a black pixel and a white pixel. You wrote (0 + 255) / 2 and got 128 — and that answer is wrong by a margin you can see from across the room.</p>
+          <span class="sub">gamma · interpolation · Srgb8 · SrgbGamma</span>
+        </div>
+        <span class="press">press 2</span>
+      </a>
+
+      <a class="cap wide" data-key="3" href="../03-pyramids-and-scale-space.html">
+        <span class="kc">part 03<b>F3</b></span>
+        <div>
+          <h3>Climbing the Pyramid</h3>
+          <p>Sizes that stop matching, two “scales” that aren’t the same thing, and coordinates that quietly drift half a pixel per step.</p>
+          <span class="sub">scale space · pyramids · half-pixel drift</span>
+        </div>
+        <span class="press">press 3</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="sec">
+    <h2>unassigned · blank caps</h2>
+    <p class="lede">Nothing bound to these yet. They get a legend when the code they
+      describe ships. No dates.</p>
+
+    <div class="rowkeys">
+      <div class="cap wide blank">
+        <span class="kc">draft<b>F4</b></span>
+        <div>
+          <h3>Fast Without Giving Up the Guarantees</h3>
+          <p>Where bounds checks actually cost you, what the profiler says versus what everyone assumes, and how little unsafe you need once you can measure.</p>
+          <span class="sub">unbound</span>
+        </div>
+        <span class="press">—</span>
+      </div>
+
+      <div class="cap wide blank">
+        <span class="kc">draft<b>F5</b></span>
+        <div>
+          <h3>Designing an API You Cannot Misuse</h3>
+          <p>Errors that live in the signature instead of the docs, constructors that refuse invalid state, and what that costs in ergonomics.</p>
+          <span class="sub">unbound</span>
+        </div>
+        <span class="press">—</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Thomas Stephan · <a href="https://github.com/karhunen-loeve">github.com/karhunen-loeve</a> ·
+    <a href="https://github.com/karhunen-loeve/fovea">fovea</a> ·
+    <a href="https://crates.io/crates/fovea">crates.io</a> ·
+    <a href="https://docs.rs/fovea">docs.rs</a> ·
+    <a href="../feed.xml">atom</a><br>
+    A personal project, unaffiliated with my employer.
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- type the name out, one keycap at a time ----
+  var caps = [].slice.call(document.querySelectorAll('#keys .cap:not(.gap)'));
+  if (!reduce && caps.length) {
+    caps.forEach(function (c, i) {
+      setTimeout(function () {
+        c.classList.add('down');
+        setTimeout(function () { c.classList.remove('down'); }, 110);
+      }, 420 + i * 72);
+    });
+  }
+
+  // ---- number keys navigate, and the cap depresses first ----
+  var bound = {};
+  [].slice.call(document.querySelectorAll('.cap.wide[data-key]')).forEach(function (a) {
+    bound[a.dataset.key] = a;
+  });
+  addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var a = bound[e.key];
+    if (!a) return;
+    e.preventDefault();
+    a.classList.add('down');
+    setTimeout(function () { a.classList.remove('down'); location.href = a.href; }, 130);
+  });
+})();
+</script>
+</body>
+</html>

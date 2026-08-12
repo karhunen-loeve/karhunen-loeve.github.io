@@ -11,6 +11,7 @@ SVG, no external assets) and can be opened straight from disk to proofread.
 | `02-gamma-blind-interpolation.html` | Part 2 — 128 Is Not the Middle |
 | `03-pyramids-and-scale-space.html` | Part 3 — Climbing the Pyramid |
 | `feed.xml` | Atom feed |
+| `images/` | The only external assets — currently just the portrait on `index.html` |
 | `.nojekyll` | Tells GitHub Pages to serve the files verbatim |
 
 ## Publishing

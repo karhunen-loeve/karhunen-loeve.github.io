@@ -3,16 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Type-Safe Computer Vision</title>
-<meta name="description" content="A series about computer vision bugs that are not logic bugs but type bugs — channel order, gamma, scale space — and how a type system makes them unrepresentable.">
+<title>Thomas Stephan — Type-Safe Computer Vision</title>
+<meta name="description" content="Thomas Stephan writes about hardening computer vision with a proper type system — channel order, gamma, scale space — and how a type system makes those bugs unrepresentable.">
 <meta name="author" content="Thomas Stephan">
 <link rel="canonical" href="https://karhunen-loeve.github.io/">
 <link rel="alternate" type="application/atom+xml" href="/feed.xml" title="Type-Safe Computer Vision">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Type-Safe Computer Vision">
-<meta property="og:title" content="Type-Safe Computer Vision">
+<meta property="og:title" content="Thomas Stephan — Type-Safe Computer Vision">
 <meta property="og:description" content="Classic computer vision bugs that are not logic bugs but type bugs — and how a type system makes them unrepresentable.">
 <meta property="og:url" content="https://karhunen-loeve.github.io/">
+<meta property="og:image" content="https://karhunen-loeve.github.io/images/profile.jpg">
 <meta name="twitter:card" content="summary">
 <style>
   :root {
@@ -66,7 +67,21 @@
     margin: 1.8rem 0; color: var(--ink-2); font-size: 1.12rem; font-style: italic;
   }
   /* --- index-only --- */
-  .toc { list-style: none; margin: 2.5rem 0 0; padding: 0; }
+  .intro { display: flex; align-items: center; gap: 1.6rem; margin-bottom: 1.6rem; }
+  .intro .portrait {
+    flex: none; width: 116px; height: 116px; border-radius: 50%;
+    object-fit: cover; border: 1px solid var(--border);
+  }
+  .intro h1 { margin: 0 0 .3rem; }
+  .intro .role { color: var(--ink-2); margin: 0; font-size: 1.05rem; }
+  @media (max-width: 34rem) {
+    .intro { flex-direction: column; align-items: flex-start; gap: 1.1rem; }
+    .intro .portrait { width: 96px; height: 96px; }
+  }
+  .cat { margin-top: 3.4rem; }
+  .cat h2 { margin: 0 0 .4rem; }
+  .cat .cat-lede { color: var(--ink-2); margin: 0; }
+  .toc { list-style: none; margin: 1.4rem 0 0; padding: 0; }
   .toc li { border-top: 1px solid var(--hairline); padding: 1.4rem 0; }
   .toc li:last-child { border-bottom: 1px solid var(--hairline); }
   .toc .part { color: var(--muted); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; }
@@ -75,6 +90,19 @@
   .toc h3 a:hover { color: var(--accent); }
   .toc p { color: var(--ink-2); margin: 0 0 .5rem; font-size: 1rem; }
   .toc .meta { color: var(--muted); font-size: .82rem; }
+  .soon { display: grid; gap: .9rem; margin-top: 1.4rem; }
+  .soon-item {
+    background: var(--surface); border: 1px solid var(--hairline);
+    border-radius: 10px; padding: 1.1rem 1.2rem;
+  }
+  .soon-item h3 { margin: 0 0 .35rem; font-size: 1.1rem; letter-spacing: -0.01em; }
+  .soon-item p { margin: 0; color: var(--ink-2); font-size: 1rem; }
+  .badge {
+    display: inline-block; margin-left: .55rem; vertical-align: .12em;
+    color: var(--muted); font-size: .68rem; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase;
+    border: 1px solid var(--hairline); border-radius: 999px; padding: .12rem .55rem;
+  }
   .colophon { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--hairline); color: var(--muted); font-size: .85rem; }
   .colophon a { color: var(--accent); text-decoration: none; }
   .colophon a:hover { text-decoration: underline; }
@@ -83,36 +111,62 @@
 <body>
 <article>
 
-<p class="kicker">A series</p>
-<h1>Type-Safe Computer Vision</h1>
-<p class="dek">Three classic computer vision bugs that have each cost the field twenty years. None of them is a logic bug. Every one of them is a <em>type</em> bug — correct functions exchanging values whose meaning was never written down.</p>
+<header class="intro">
+  <img class="portrait" src="images/profile.jpg" width="116" height="116"
+       alt="Portrait of Thomas Stephan">
+  <div>
+    <h1>Thomas Stephan</h1>
+    <p class="role">Computer vision engineer. I write Rust, and I write about the bugs a compiler should have caught.</p>
+  </div>
+</header>
 
-<p>An image, in almost every vision library, is an array of numbers. Whether those numbers are red-first or blue-first, gamma-encoded or linear, at pyramid level 2 or level 3 — that lives in documentation, in variable names, in your memory. Everywhere except in the data. So the compiler, the one tool that checks your assumptions on every line, has been told nothing, and checks nothing.</p>
+<p class="dek">I have spent a good part of my career chasing bugs that were never really bugs: a channel order nobody wrote down, a gamma curve everyone assumed, a pyramid level that drifted half a pixel. My interest is in making that whole class of mistake impossible — encoding what a number <em>means</em> into its type, so the compiler objects on the line where the mistake happens instead of a reviewer noticing three months later.</p>
 
 <p class="pull">The fix is not more care. Care doesn't scale.</p>
 
-<p>Each post takes one bug, shows it small enough to be undeniable, then shows the same bug where no human is looking — inside a tensor, inside a production pipeline. The payoff is always a compile error.</p>
+<p>What follows is organised by topic. Each post takes one problem, shows it small enough to be undeniable, then shows the same problem where no human is looking — inside a tensor, inside a production pipeline. The payoff is always a compile error.</p>
 
-<ol class="toc">
-  <li>
-    <p class="part">Part 1</p>
-    <h3><a href="01-rgb-bgr-the-blue-face-bug.html">The Blue Face Bug</a></h3>
-    <p>Your camera says blue-green-red. Your model says red-green-blue. The bytes in between say nothing at all.</p>
-    <p class="meta">Beginner · channel order, <code>Bgr8</code>, <code>ColorSwap</code></p>
-  </li>
-  <li>
-    <p class="part">Part 2</p>
-    <h3><a href="02-gamma-blind-interpolation.html">128 Is Not the Middle</a></h3>
-    <p>Average a black pixel and a white pixel. You wrote <code>(0 + 255) / 2</code> and got 128 — and that answer is wrong by a margin you can see from across the room.</p>
-    <p class="meta">Beginner–intermediate · gamma and interpolation, <code>Srgb8</code>, <code>SrgbGamma</code></p>
-  </li>
-  <li>
-    <p class="part">Part 3</p>
-    <h3><a href="03-pyramids-and-scale-space.html">Climbing the Pyramid</a></h3>
-    <p>Sizes that stop matching, two “scales” that aren’t the same thing, and coordinates that quietly drift half a pixel per step.</p>
-    <p class="meta">Intermediate · scale space, pyramids, half-pixel drift</p>
-  </li>
-</ol>
+<section class="cat">
+  <h2>Hardening Computer Vision with a Proper Type System</h2>
+  <p class="cat-lede">Three classic computer vision bugs that have each cost the field twenty years. None of them is a logic bug. Every one of them is a <em>type</em> bug — correct functions exchanging values whose meaning was never written down.</p>
+
+  <ol class="toc">
+    <li>
+      <p class="part">Part 1</p>
+      <h3><a href="01-rgb-bgr-the-blue-face-bug.html">The Blue Face Bug</a></h3>
+      <p>Your camera says blue-green-red. Your model says red-green-blue. The bytes in between say nothing at all.</p>
+      <p class="meta">Beginner · channel order, <code>Bgr8</code>, <code>ColorSwap</code></p>
+    </li>
+    <li>
+      <p class="part">Part 2</p>
+      <h3><a href="02-gamma-blind-interpolation.html">128 Is Not the Middle</a></h3>
+      <p>Average a black pixel and a white pixel. You wrote <code>(0 + 255) / 2</code> and got 128 — and that answer is wrong by a margin you can see from across the room.</p>
+      <p class="meta">Beginner–intermediate · gamma and interpolation, <code>Srgb8</code>, <code>SrgbGamma</code></p>
+    </li>
+    <li>
+      <p class="part">Part 3</p>
+      <h3><a href="03-pyramids-and-scale-space.html">Climbing the Pyramid</a></h3>
+      <p>Sizes that stop matching, two “scales” that aren’t the same thing, and coordinates that quietly drift half a pixel per step.</p>
+      <p class="meta">Intermediate · scale space, pyramids, half-pixel drift</p>
+    </li>
+  </ol>
+</section>
+
+<section class="cat">
+  <h2>Coming soon</h2>
+  <p class="cat-lede">Topics I am writing up next. No dates yet — they go live when the code they describe is published.</p>
+
+  <div class="soon">
+    <div class="soon-item">
+      <h3>Fast Without Giving Up the Guarantees<span class="badge">Planned</span></h3>
+      <p>Making safe Rust as fast as the C it replaces: where bounds checks actually cost you, what the profiler says versus what everyone assumes, and how little <code>unsafe</code> you need once you can measure.</p>
+    </div>
+    <div class="soon-item">
+      <h3>Designing an API You Cannot Misuse<span class="badge">Planned</span></h3>
+      <p>Errors that live in the signature instead of the docs, constructors that refuse invalid state, and what it costs to keep a library like that pleasant to use.</p>
+    </div>
+  </div>
+</section>
 
 <div class="colophon">
   Written by Thomas Stephan (<a href="https://github.com/karhunen-loeve">karhunen-loeve</a>).

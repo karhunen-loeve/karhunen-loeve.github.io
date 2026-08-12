@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restoration — Dr. Thomas Stephan</title>
+<meta name="description" content="Dr. Thomas Stephan — software architect and computer vision engineer. Doctorate on underwater image restoration; now hardening computer vision with a proper type system.">
+<style>
+  :root {
+    color-scheme: dark;
+    --abyss:  #01080e;
+    --deep:   #052231;
+    --mid:    #0a3a4d;
+    --teal:   #4fe0d0;
+    --teal-2: #2ba9a0;
+    --pale:   #b6ece6;
+    --sand:   #ffcf8a;
+    --ink:    #dff3f1;
+    --ink-2:  #7fb3b0;
+    --ink-3:  #4a7a7a;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --turb: 1;      /* turbidity, 1 = raw, 0 = restored */
+    --depth: 0;     /* 0 = surface, 1 = abyss */
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--ink); font: 16.5px/1.7 var(--sans);
+    background: linear-gradient(180deg, #063346 0%, #032330 22%, #011722 55%, var(--abyss) 100%);
+    background-attachment: fixed; overflow-x: hidden;
+  }
+  /* descending darkens everything */
+  .abyssal {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    background: var(--abyss); opacity: calc(var(--depth) * .72);
+  }
+  /* caustics under the surface */
+  .caustics {
+    position: fixed; top: 0; left: -5%; width: 110%; height: 46vh;
+    z-index: 0; pointer-events: none; opacity: .5;
+    mix-blend-mode: screen;
+    mask-image: linear-gradient(#000 0%, rgba(0,0,0,.45) 45%, transparent 100%);
+    -webkit-mask-image: linear-gradient(#000 0%, rgba(0,0,0,.45) 45%, transparent 100%);
+  }
+  /* marine snow */
+  .snow { position: fixed; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+  .snow i {
+    position: absolute; border-radius: 50%; background: var(--pale);
+    opacity: 0; animation: rise linear infinite;
+  }
+  @keyframes rise {
+    0%   { transform: translate3d(0, 12vh, 0) scale(.7); opacity: 0 }
+    12%  { opacity: .55 }
+    88%  { opacity: .4 }
+    100% { transform: translate3d(2.5rem, -108vh, 0) scale(1.1); opacity: 0 }
+  }
+
+  /* depth rail */
+  .rail {
+    position: fixed; left: 1.1rem; top: 0; bottom: 0; width: 4.4rem; z-index: 6;
+    display: flex; flex-direction: column; justify-content: center; gap: .4rem;
+    font: .62rem/1.4 var(--mono); letter-spacing: .12em; color: var(--ink-3);
+    pointer-events: none; text-transform: uppercase;
+  }
+  .rail .tick { display: flex; align-items: center; gap: .4rem; }
+  .rail .tick span { width: 12px; height: 1px; background: currentColor; }
+  .rail .tick.hit { color: var(--teal); }
+  .rail .now { margin-top: .9rem; color: var(--teal); font-size: .95rem; letter-spacing: .04em; }
+  @media (max-width: 62rem) { .rail { display: none; } }
+
+  main { position: relative; z-index: 5; max-width: 60rem; margin: 0 auto; padding: 0 1.5rem 8rem; }
+
+  /* ---------- header ---------- */
+  .top {
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    padding: 1.5rem 0 5rem; font: .68rem/1 var(--mono);
+    letter-spacing: .2em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .top .sep { flex: 1; height: 1px; background: linear-gradient(90deg, var(--ink-3), transparent); }
+  .top b { color: var(--teal-2); font-weight: 400; }
+
+  /* ---------- hero ---------- */
+  .hero { display: grid; grid-template-columns: 300px 1fr; gap: 3.4rem; align-items: start; margin-bottom: 7rem; }
+  @media (max-width: 52rem) { .hero { grid-template-columns: 1fr; gap: 2.4rem; } }
+
+  .plate { position: relative; max-width: 300px; }
+  .plate .win { position: relative; overflow: hidden; border-radius: 2px; }
+  .plate img {
+    display: block; width: 100%; aspect-ratio: 1; object-fit: cover;
+    filter:
+      blur(calc(var(--turb) * 4.5px))
+      saturate(calc(1 - var(--turb) * .62))
+      contrast(calc(1 - var(--turb) * .46))
+      brightness(calc(1 + var(--turb) * .06))
+      hue-rotate(calc(var(--turb) * 26deg));
+  }
+  /* veiling light: scattered, additive, exactly what kills contrast underwater */
+  .plate .veil {
+    position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+    background: linear-gradient(150deg, #1d8f9b, #0e5f78 55%, #0a4a63);
+    opacity: calc(var(--turb) * .5);
+  }
+  .plate .frame {
+    position: absolute; inset: -1px; pointer-events: none;
+    border: 1px solid rgba(79,224,208,.28);
+    box-shadow: inset 0 0 40px rgba(79,224,208,.1);
+  }
+  .plate .caption {
+    display: flex; justify-content: space-between; gap: 1rem;
+    margin-top: .7rem; font: .64rem/1.6 var(--mono);
+    letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .plate .caption b { color: var(--teal); font-weight: 400; }
+
+  .ctrl { margin-top: 1.4rem; }
+  .ctrl label {
+    display: flex; justify-content: space-between; gap: 1rem;
+    font: .62rem/1.6 var(--mono); letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .ctrl label b { color: var(--sand); font-weight: 400; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 22px;
+    background: transparent; cursor: ew-resize; margin: .3rem 0 0;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 2px; background: linear-gradient(90deg, var(--teal), var(--ink-3));
+  }
+  input[type=range]::-moz-range-track { height: 2px; background: linear-gradient(90deg, var(--teal), var(--ink-3)); }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 12px; height: 12px; margin-top: -5px;
+    border-radius: 50%; background: var(--teal); box-shadow: 0 0 12px rgba(79,224,208,.8);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 12px; height: 12px; border: 0; border-radius: 50%;
+    background: var(--teal); box-shadow: 0 0 12px rgba(79,224,208,.8);
+  }
+
+  .who h1 {
+    font: 300 clamp(2.4rem, 7vw, 4.1rem)/1.02 var(--sans);
+    letter-spacing: -.035em; margin: 0 0 .1rem;
+  }
+  .who h1 b { font-weight: 700; display: block; }
+  .who .role {
+    font: .74rem/1.6 var(--mono); letter-spacing: .2em; text-transform: uppercase;
+    color: var(--teal); margin: 1rem 0 1.8rem;
+  }
+  .who p { color: var(--ink-2); margin: 0 0 1.1rem; max-width: 50ch; }
+  .who p em { color: var(--ink); font-style: normal; border-bottom: 1px solid var(--teal-2); }
+  .who .thesis {
+    margin: 2rem 0 0; padding: 1rem 0 0; border-top: 1px solid rgba(79,224,208,.16);
+    font: .68rem/1.9 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .who .thesis b { color: var(--pale); font-weight: 400; }
+
+  /* ---------- sections ---------- */
+  .sec { margin-bottom: 6.5rem; }
+  .sec-h { margin-bottom: 2.6rem; }
+  .sec-h .lab {
+    display: inline-flex; align-items: center; gap: .55rem;
+    font: .64rem/1 var(--mono); letter-spacing: .22em; text-transform: uppercase;
+    color: var(--teal); margin-bottom: 1rem;
+  }
+  .sec-h .lab::before { content: ""; width: 22px; height: 1px; background: var(--teal); }
+  .sec-h.dim .lab { color: var(--ink-3); }
+  .sec-h.dim .lab::before { background: var(--ink-3); }
+  .sec-h h2 { font: 300 clamp(1.6rem, 4.2vw, 2.4rem)/1.15 var(--sans); letter-spacing: -.03em; margin: 0 0 .8rem; }
+  .sec-h h2 b { font-weight: 700; }
+  .sec-h p { color: var(--ink-2); margin: 0; max-width: 60ch; }
+
+  .row {
+    display: grid; grid-template-columns: 4.5rem 1fr auto; gap: 1.6rem; align-items: baseline;
+    padding: 1.8rem 0; border-top: 1px solid rgba(79,224,208,.14);
+    text-decoration: none; color: inherit; position: relative;
+    transition: background .3s;
+  }
+  .row:last-of-type { border-bottom: 1px solid rgba(79,224,208,.14); }
+  .row::after {
+    content: ""; position: absolute; left: -1.5rem; right: -1.5rem; top: 0; bottom: 0; z-index: -1;
+    background: linear-gradient(90deg, rgba(79,224,208,.07), transparent 70%);
+    opacity: 0; transition: opacity .3s;
+  }
+  a.row:hover::after, a.row:focus::after { opacity: 1; }
+  a.row:hover, a.row:focus { outline: none; }
+  .row .d { font: .66rem/1.6 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .row h3 { font: 500 1.45rem/1.25 var(--sans); letter-spacing: -.025em; margin: 0 0 .5rem; transition: color .25s; }
+  a.row:hover h3, a.row:focus h3 { color: var(--teal); }
+  .row p { margin: 0 0 .6rem; color: var(--ink-2); font-size: .98rem; max-width: 56ch; }
+  .row .tag { font: .64rem/1.6 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .row .go { font: 1.1rem/1 var(--mono); color: var(--teal); opacity: 0; transform: translateX(-8px); transition: .28s; }
+  a.row:hover .go, a.row:focus .go { opacity: 1; transform: none; }
+  .row.turbid h3 { color: var(--ink-2); filter: blur(1.4px); }
+  .row.turbid .d { color: #35595c; }
+  .row.turbid p { filter: blur(.5px); }
+
+  .rv { opacity: 0; transform: translateY(18px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.3,1); }
+  .rv.on { opacity: 1; transform: none; }
+
+  footer {
+    border-top: 1px solid rgba(79,224,208,.14); padding-top: 1.6rem;
+    font: .7rem/2 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3);
+  }
+  footer a { color: var(--teal-2); text-decoration: none; }
+  footer a:hover { color: var(--teal); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .snow, .caustics { display: none; }
+    .rv { opacity: 1; transform: none; transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<svg class="caustics" viewBox="0 0 900 380" preserveAspectRatio="none" aria-hidden="true">
+  <defs>
+    <filter id="cst" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.011 0.038" numOctaves="2" seed="11" result="n">
+        <animate attributeName="baseFrequency" dur="28s" repeatCount="indefinite"
+                 values="0.011 0.038; 0.017 0.052; 0.009 0.032; 0.011 0.038"></animate>
+      </feTurbulence>
+      <feColorMatrix in="n" type="matrix"
+        values="0 0 0 0 0.42
+                0 0 0 0 0.95
+                0 0 0 0 0.90
+                1.6 0 0 0 -0.72"></feColorMatrix>
+      <feGaussianBlur stdDeviation="1.6"></feGaussianBlur>
+    </filter>
+  </defs>
+  <rect width="900" height="380" filter="url(#cst)"></rect>
+</svg>
+
+<div class="abyssal"></div>
+<div class="snow" id="snow" aria-hidden="true"></div>
+
+<aside class="rail" aria-hidden="true">
+  <div class="tick" data-d="0"><span></span>0 m</div>
+  <div class="tick" data-d="10"><span></span>10 m</div>
+  <div class="tick" data-d="20"><span></span>20 m</div>
+  <div class="tick" data-d="30"><span></span>30 m</div>
+  <div class="tick" data-d="40"><span></span>40 m</div>
+  <div class="now" id="depth">0.0 m</div>
+</aside>
+
+<main>
+
+  <div class="top">
+    <span>karhunen–loeve</span>
+    <span class="sep"></span>
+    <span>attenuation <b>β = 0.34 m⁻¹</b></span>
+    <span>medium <b>seawater</b></span>
+  </div>
+
+  <section class="hero">
+    <div class="plate">
+      <div class="win">
+        <img src="../images/profile.jpg" alt="Portrait of Thomas Stephan">
+        <div class="veil"></div>
+        <div class="frame"></div>
+      </div>
+      <p class="caption"><span>plate 01 · <b id="state">raw</b></span><span id="pct">turbidity 100 %</span></p>
+      <div class="ctrl">
+        <label for="turb">turbidity <b>drag me</b></label>
+        <input type="range" id="turb" min="0" max="100" value="100" step="1"
+               aria-label="Turbidity — drag to degrade or restore the portrait">
+      </div>
+    </div>
+
+    <div class="who">
+      <h1>Dr. Thomas<b>Stephan</b></h1>
+      <p class="role">software architect · team lead · computer vision</p>
+      <p>My doctorate was on restoring underwater images — modelling what happens to
+         light on its way from a scene to a sensor when the medium in between refuses
+         to cooperate. Scattering, absorption, veiling light: the image you get is not
+         the image that was there, and getting it back is an inverse problem.</p>
+      <p>Since 2016 I write C++/Qt for molecular beam epitaxy systems, where a wrong
+         number does not throw an exception — it grows the wrong crystal. Almost every
+         expensive bug I have chased was never really a bug. I want that class of
+         mistake to be <em>unrepresentable</em>: the meaning of a number encoded in its
+         type, so the compiler objects on the line where it happens.</p>
+      <p class="thesis">
+        Dr.-Ing. · Karlsruhe Institute of Technology, 2016<br>
+        <b>Beitrag zur Unterwasserbildrestauration</b><br>
+        Vision and Fusion Laboratory · image restoration, nonlinear optimisation, information fusion
+      </p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h rv">
+      <span class="lab">restored · published</span>
+      <h2>Hardening computer vision with <b>a proper type system</b></h2>
+      <p>Three classic bugs that have each cost the field twenty years. None of them is
+         a logic bug. Every one is a type bug — correct functions exchanging values
+         whose meaning was never written down anywhere the compiler could read it.</p>
+    </div>
+
+    <a class="row rv" href="../01-rgb-bgr-the-blue-face-bug.html">
+      <span class="d">Part 01<br>0 m</span>
+      <div>
+        <h3>The Blue Face Bug</h3>
+        <p>Your camera says blue-green-red. Your model says red-green-blue. The bytes in
+           between say nothing at all.</p>
+        <span class="tag">channel order · Bgr8 · ColorSwap</span>
+      </div>
+      <span class="go">→</span>
+    </a>
+
+    <a class="row rv" href="../02-gamma-blind-interpolation.html">
+      <span class="d">Part 02<br>12 m</span>
+      <div>
+        <h3>128 Is Not the Middle</h3>
+        <p>Average a black pixel and a white pixel. You wrote (0 + 255) / 2 and got 128 —
+           and that answer is wrong by a margin you can see from across the room.</p>
+        <span class="tag">gamma · interpolation · Srgb8 · SrgbGamma</span>
+      </div>
+      <span class="go">→</span>
+    </a>
+
+    <a class="row rv" href="../03-pyramids-and-scale-space.html">
+      <span class="d">Part 03<br>24 m</span>
+      <div>
+        <h3>Climbing the Pyramid</h3>
+        <p>Sizes that stop matching, two “scales” that aren’t the same thing, and
+           coordinates that quietly drift half a pixel per step.</p>
+        <span class="tag">scale space · pyramids · half-pixel drift</span>
+      </div>
+      <span class="go">→</span>
+    </a>
+  </section>
+
+  <section class="sec">
+    <div class="sec-h dim rv">
+      <span class="lab">still turbid · unpublished</span>
+      <h2>Not yet <b>restored</b></h2>
+      <p>Written up next. No dates — they surface when the code they describe ships.</p>
+    </div>
+
+    <div class="row turbid rv">
+      <span class="d">Draft<br>36 m</span>
+      <div>
+        <h3>Fast Without Giving Up the Guarantees</h3>
+        <p>Where bounds checks actually cost you, what the profiler says versus what
+           everyone assumes, and how little unsafe you need once you can measure.</p>
+        <span class="tag">performance · benchmarks · unsafe</span>
+      </div>
+      <span></span>
+    </div>
+
+    <div class="row turbid rv">
+      <span class="d">Draft<br>40 m</span>
+      <div>
+        <h3>Designing an API You Cannot Misuse</h3>
+        <p>Errors that live in the signature instead of the docs, constructors that
+           refuse invalid state, and what that costs in ergonomics.</p>
+        <span class="tag">api design · Result · typestate</span>
+      </div>
+      <span></span>
+    </div>
+  </section>
+
+  <footer>
+    Dr. Thomas Stephan · <a href="https://github.com/karhunen-loeve">github.com/karhunen-loeve</a><br>
+    <a href="https://github.com/karhunen-loeve/fovea">fovea</a> ·
+    <a href="https://crates.io/crates/fovea">crates.io</a> ·
+    <a href="https://docs.rs/fovea">docs.rs</a> ·
+    <a href="../feed.xml">atom feed</a><br>
+    A personal project, unaffiliated with my employer.
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var root = document.documentElement;
+
+  // ---- marine snow ----
+  var snow = document.getElementById('snow');
+  if (snow && !reduce) {
+    for (var i = 0; i < 16; i++) {
+      var d = document.createElement('i');
+      var s = 1.2 + Math.random() * 2.6;
+      d.style.width = d.style.height = s.toFixed(1) + 'px';
+      d.style.left = (Math.random() * 100).toFixed(2) + '%';
+      d.style.top = (100 + Math.random() * 30).toFixed(1) + '%';
+      d.style.animationDuration = (16 + Math.random() * 26).toFixed(1) + 's';
+      d.style.animationDelay = (-Math.random() * 30).toFixed(1) + 's';
+      snow.appendChild(d);
+    }
+  }
+  if (reduce) {
+    // strip the SVG turbulence animation so nothing moves
+    var an = document.querySelectorAll('.caustics animate');
+    for (var k = 0; k < an.length; k++) an[k].parentNode.removeChild(an[k]);
+  }
+
+  // ---- turbidity: restore on load, then hand the slider over ----
+  var slider = document.getElementById('turb'),
+      pct = document.getElementById('pct'),
+      state = document.getElementById('state');
+
+  function setTurb(v) {                       // v in [0,1]
+    root.style.setProperty('--turb', v.toFixed(3));
+    if (pct) pct.textContent = 'turbidity ' + Math.round(v * 100) + ' %';
+    if (state) state.textContent = v < .04 ? 'restored' : (v > .8 ? 'raw' : 'restoring');
+  }
+
+  setTurb(1);
+  if (slider) {
+    slider.addEventListener('input', function () {
+      setTurb(slider.value / 100);
+    });
+  }
+
+  if (reduce) {
+    setTurb(0);
+    if (slider) slider.value = 0;
+  } else {
+    var T0 = null, DUR = 2600;
+    requestAnimationFrame(function anim(ts) {
+      if (T0 === null) T0 = ts;
+      var p = Math.min(1, (ts - T0) / DUR);
+      var e = 1 - Math.pow(1 - p, 3);          // ease-out cubic
+      var v = 1 - e;
+      setTurb(v);
+      if (slider) slider.value = Math.round(v * 100);
+      if (p < 1) requestAnimationFrame(anim);
+    });
+  }
+
+  // ---- depth tracking ----
+  var depth = document.getElementById('depth');
+  var ticks = document.querySelectorAll('.rail .tick');
+  var raf = null;
+  function onScroll() {
+    var max = Math.max(1, document.documentElement.scrollHeight - innerHeight);
+    var p = Math.min(1, Math.max(0, scrollY / max));
+    root.style.setProperty('--depth', p.toFixed(3));
+    var m = p * 40;
+    if (depth) depth.textContent = m.toFixed(1) + ' m';
+    for (var i = 0; i < ticks.length; i++) {
+      ticks[i].classList.toggle('hit', m >= parseFloat(ticks[i].dataset.d) - .5);
+    }
+  }
+  addEventListener('scroll', function () {
+    if (raf) return;
+    raf = requestAnimationFrame(function () { raf = null; onScroll(); });
+  }, { passive: true });
+  onScroll();
+
+  // ---- reveal ----
+  var rv = document.querySelectorAll('.rv');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); }
+      });
+    }, { threshold: .12, rootMargin: '0px 0px -8% 0px' });
+    rv.forEach(function (e) { io.observe(e); });
+  } else {
+    rv.forEach(function (e) { e.classList.add('on'); });
+  }
+})();
+</script>
+</body>
+</html>

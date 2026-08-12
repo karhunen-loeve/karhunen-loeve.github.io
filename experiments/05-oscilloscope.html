@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KL-1 SIGNAL ANALYSER — Thomas Stephan</title>
+<meta name="description" content="Thomas Stephan — computer vision engineer. Hardening computer vision with a proper type system.">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:     #04070a;
+    --panel:  #070d11;
+    --grid:   #0f2b26;
+    --grid-2: #123830;
+    --phos:   #35ffc4;
+    --phos-2: #0fd8a4;
+    --amber:  #ffb340;
+    --violet: #b78bff;
+    --ink:    #cfe8e1;
+    --ink-2:  #6f9a90;
+    --ink-3:  #3f5f58;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14.5px/1.7 var(--mono); overflow-x: hidden;
+  }
+  /* graticule */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+      linear-gradient(var(--grid-2) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-2) 1px, transparent 1px);
+    background-size: 100% 20px, 20px 100%, 100% 100px, 100px 100%;
+    opacity: .5;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none;
+    background: radial-gradient(120% 95% at 50% 45%, transparent 48%, rgba(0,0,0,.9) 100%);
+  }
+  .bezel {
+    position: fixed; inset: 0; z-index: 55; pointer-events: none;
+    border: 10px solid #0b1115;
+    box-shadow: inset 0 0 0 1px #16232a, inset 0 0 70px rgba(0,0,0,.85);
+  }
+  main { position: relative; z-index: 2; max-width: 68rem; margin: 0 auto; padding: 0 2rem 7rem; }
+
+  /* ---------- instrument header ---------- */
+  .plate {
+    display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap;
+    padding: 1.4rem 0 1rem; border-bottom: 1px solid var(--grid-2);
+    font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .plate .brand { color: var(--phos); font-weight: 700; letter-spacing: .28em; text-shadow: 0 0 12px rgba(53,255,196,.4); }
+  .plate .sp { flex: 1; }
+  .plate .led { width: 7px; height: 7px; border-radius: 50%; background: var(--phos); box-shadow: 0 0 8px var(--phos); animation: blip 2.4s ease-in-out infinite; }
+  @keyframes blip { 50% { opacity: .2 } }
+  .readbar {
+    display: flex; gap: 2rem; flex-wrap: wrap; padding: .7rem 0 2.5rem;
+    font-size: .7rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .readbar b { color: var(--amber); font-weight: 400; }
+
+  /* ---------- scope hero ---------- */
+  .scope { position: relative; margin: 0 -2rem 3rem; height: 240px; }
+  .scope canvas { display: block; width: 100%; height: 100%; }
+  .scope .basis {
+    position: absolute; left: 2rem; top: .9rem; font-size: .68rem;
+    letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .scope .basis i { font-style: normal; margin-right: 1rem; }
+  .scope .basis i:nth-child(1) { color: var(--phos); }
+  .scope .basis i:nth-child(2) { color: var(--amber); }
+  .scope .basis i:nth-child(3) { color: var(--violet); }
+
+  /* ---------- identity ---------- */
+  .id { display: flex; gap: 2.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 4.5rem; }
+  .aperture { position: relative; flex: none; width: 168px; height: 168px; }
+  .aperture img {
+    width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;
+    filter: grayscale(1) sepia(.35) hue-rotate(105deg) saturate(2.4) contrast(1.1) brightness(.82);
+    border: 1px solid var(--grid-2);
+  }
+  .aperture .sweep {
+    position: absolute; inset: -1px; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(from 0deg, rgba(53,255,196,.35) 0 6%, transparent 22% 100%);
+    animation: spin 4.2s linear infinite;
+    mix-blend-mode: screen;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .aperture .cross {
+    position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    background:
+      linear-gradient(rgba(53,255,196,.22) 0 1px, transparent 1px) 50% 50%/100% 33.3% repeat-y,
+      linear-gradient(90deg, rgba(53,255,196,.22) 0 1px, transparent 1px) 50% 50%/33.3% 100% repeat-x;
+    box-shadow: inset 0 0 30px rgba(53,255,196,.12);
+  }
+  .aperture .ring { position: absolute; inset: -14px; border: 1px dashed var(--grid-2); border-radius: 50%; }
+  .id .who { flex: 1 1 26ch; }
+  .id .who h1 {
+    font: 700 clamp(2.1rem, 6vw, 3.3rem)/1.05 var(--mono);
+    letter-spacing: -.03em; margin: 0 0 .3rem;
+    color: var(--ink); text-shadow: 0 0 24px rgba(53,255,196,.18);
+  }
+  .id .who .sub { color: var(--phos); font-size: .82rem; letter-spacing: .2em; text-transform: uppercase; margin: 0 0 1.4rem; }
+  .id .who p { color: var(--ink-2); margin: 0 0 .9rem; max-width: 52ch; }
+  .id .who p em { color: var(--ink); font-style: normal; border-bottom: 1px solid var(--phos-2); }
+
+  /* ---------- stats ---------- */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 1px;
+           background: var(--grid-2); border: 1px solid var(--grid-2); margin-bottom: 5.5rem; }
+  .stats div { background: var(--panel); padding: 1.1rem 1.2rem; }
+  .stats dt { font-size: .66rem; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-3); margin-bottom: .3rem; }
+  .stats dd { margin: 0; font-size: 1.7rem; line-height: 1; color: var(--phos); text-shadow: 0 0 16px rgba(53,255,196,.35); }
+  .stats dd small { font-size: .7rem; color: var(--ink-3); letter-spacing: .1em; }
+
+  /* ---------- channel sections ---------- */
+  .sec { margin-bottom: 5rem; }
+  .sec > h2 {
+    font: 700 1.02rem/1.4 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+    margin: 0 0 .5rem; color: var(--ink);
+    display: flex; align-items: center; gap: .8rem;
+  }
+  .sec > h2::before { content: ""; width: 10px; height: 10px; background: var(--phos); flex: none; box-shadow: 0 0 10px var(--phos); }
+  .sec.off > h2::before { background: var(--ink-3); box-shadow: none; }
+  .sec > .lede { color: var(--ink-2); max-width: 64ch; margin: 0 0 2.2rem; }
+
+  .ch {
+    display: grid; grid-template-columns: 6.5rem 1fr 8rem; gap: 1.6rem; align-items: center;
+    background: var(--panel); border: 1px solid var(--grid-2); border-left: 2px solid var(--ch, var(--phos));
+    padding: 1.4rem 1.5rem; margin-bottom: 1rem;
+    text-decoration: none; color: inherit; transition: background .25s, border-color .25s, transform .25s;
+  }
+  a.ch:hover, a.ch:focus { background: #0a1419; transform: translateY(-2px); outline: none;
+                           box-shadow: 0 0 0 1px var(--ch), 0 8px 30px rgba(0,0,0,.5); }
+  .ch .label { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+  .ch .label b { display: block; font-size: 1.05rem; letter-spacing: .06em; color: var(--ch, var(--phos)); font-weight: 700; }
+  .ch h3 { font: 700 1.2rem/1.3 var(--mono); letter-spacing: -.02em; margin: 0 0 .4rem; color: var(--ink); }
+  .ch p { margin: 0 0 .5rem; color: var(--ink-2); font-size: .92rem; }
+  .ch .meas { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .ch .trace { width: 100%; height: 46px; overflow: visible; }
+  .ch .trace path {
+    fill: none; stroke: var(--ch, var(--phos)); stroke-width: 1.6; stroke-linecap: round;
+    filter: drop-shadow(0 0 4px var(--ch, var(--phos)));
+    stroke-dasharray: 400; stroke-dashoffset: 400;
+    transition: stroke-dashoffset 1.5s cubic-bezier(.3,.7,.3,1);
+  }
+  .ch.on .trace path { stroke-dashoffset: 0; }
+  .ch.dead { border-left-color: var(--ink-3); }
+  .ch.dead h3 { color: var(--ink-2); }
+  .ch.dead .trace path { stroke: var(--ink-3); filter: none; }
+  .ch .nosig { color: var(--amber); font-size: .66rem; letter-spacing: .18em; text-transform: uppercase; animation: blip 1.8s ease-in-out infinite; }
+
+  .rv { opacity: 0; transform: translateY(16px); transition: opacity .6s ease, transform .6s ease; }
+  .rv.on { opacity: 1; transform: none; }
+
+  footer {
+    border-top: 1px solid var(--grid-2); padding-top: 1.5rem;
+    font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); line-height: 2.1;
+  }
+  footer a { color: var(--phos-2); text-decoration: none; }
+  footer a:hover { color: var(--phos); text-shadow: 0 0 10px rgba(53,255,196,.5); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .aperture .sweep, .plate .led, .ch .nosig { animation: none; }
+    .rv { opacity: 1; transform: none; transition: none; }
+    .ch .trace path { stroke-dashoffset: 0; transition: none; }
+  }
+  @media (max-width: 48rem) {
+    main { padding: 0 1.1rem 5rem; }
+    .scope { margin: 0 -1.1rem 2rem; height: 180px; }
+    .scope .basis { left: 1.1rem; }
+    .ch { grid-template-columns: 1fr; gap: .8rem; }
+    .ch .trace { height: 36px; }
+  }
+</style>
+</head>
+<body>
+<div class="bezel"></div>
+<main>
+
+  <div class="plate">
+    <span class="brand">KL-1</span>
+    <span>signal analyser</span>
+    <span class="sp"></span>
+    <span>karhunen–loève basis</span>
+    <span class="led"></span>
+  </div>
+  <div class="readbar">
+    <span>trig ▸ <b>rising</b></span>
+    <span>time/div <b>20 ms</b></span>
+    <span>v/div <b>500 mV</b></span>
+    <span>coupling <b>dc</b></span>
+    <span>channels <b>3 live / 2 off</b></span>
+  </div>
+
+  <div class="scope">
+    <canvas id="scope" aria-hidden="true"></canvas>
+    <p class="basis"><i>φ₀ channel order</i><i>φ₁ gamma</i><i>φ₂ scale space</i></p>
+  </div>
+
+  <section class="id">
+    <div class="aperture">
+      <img src="../images/profile.jpg" alt="Portrait of Thomas Stephan">
+      <div class="cross"></div>
+      <div class="sweep"></div>
+      <div class="ring"></div>
+    </div>
+    <div class="who">
+      <h1>Thomas Stephan</h1>
+      <p class="sub">Dr.-Ing. · software architect · team lead</p>
+      <p>My doctorate was on restoring underwater images: modelling what light does on
+         its way from a scene to a sensor when the medium in between refuses to
+         cooperate. Signal processing, Fourier analysis, nonlinear optimisation,
+         information fusion — the handle comes from the lab I did it in.</p>
+      <p>Since 2016 I write C++/Qt for molecular beam epitaxy systems, where a wrong
+         number does not throw an exception — it grows the wrong crystal. Almost every
+         expensive bug I have chased was never really a bug. I want that class of
+         mistake to be <em>unrepresentable</em>: the meaning of a number encoded in its
+         type, so the compiler objects on the line where it happens.</p>
+    </div>
+  </section>
+
+  <dl class="stats rv">
+    <div><dt>doctorate</dt><dd>2016<small> kit · image restoration</small></dd></div>
+    <div><dt>architect since</dt><dd>2016<small> c++/qt · epitaxy</small></dd></div>
+    <div><dt>team lead since</dt><dd>2020<small> architecture · requirements</small></dd></div>
+    <div><dt>logic bugs found</dt><dd>0<small> they were all type bugs</small></dd></div>
+  </dl>
+
+  <section class="sec">
+    <h2>Hardening computer vision with a proper type system</h2>
+    <p class="lede">Three classic bugs that have each cost the field twenty years. None
+      of them is a logic bug. Every one is a <em style="color:var(--ink);font-style:normal">type</em>
+      bug — correct functions exchanging values whose meaning was never written down.</p>
+
+    <a class="ch rv" style="--ch:var(--phos)" href="../01-rgb-bgr-the-blue-face-bug.html">
+      <span class="label">part 01<b>CH1</b></span>
+      <div>
+        <h3>The Blue Face Bug</h3>
+        <p>Your camera says blue-green-red. Your model says red-green-blue. The bytes in between say nothing at all.</p>
+        <span class="meas">Bgr8 · ColorSwap · beginner</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none">
+        <path d="M0,23 H18 V8 H38 V38 H58 V8 H78 V38 H98 V23 H120"></path>
+      </svg>
+    </a>
+
+    <a class="ch rv" style="--ch:var(--amber)" href="../02-gamma-blind-interpolation.html">
+      <span class="label">part 02<b>CH2</b></span>
+      <div>
+        <h3>128 Is Not the Middle</h3>
+        <p>Average a black pixel and a white pixel. You wrote (0 + 255) / 2 and got 128 — wrong by a margin you can see across the room.</p>
+        <span class="meas">Srgb8 · SrgbGamma · beginner–int.</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none">
+        <path d="M0,42 C22,41 34,36 46,26 C58,16 70,8 88,5 C100,3.5 110,3 120,3"></path>
+      </svg>
+    </a>
+
+    <a class="ch rv" style="--ch:var(--violet)" href="../03-pyramids-and-scale-space.html">
+      <span class="label">part 03<b>CH3</b></span>
+      <div>
+        <h3>Climbing the Pyramid</h3>
+        <p>Sizes that stop matching, two “scales” that aren’t the same thing, and coordinates that quietly drift half a pixel per step.</p>
+        <span class="meas">scale space · half-pixel drift · intermediate</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none">
+        <path d="M0,40 L14,10 L28,40 L42,14 L56,40 L70,19 L84,40 L98,25 L112,40 L120,32"></path>
+      </svg>
+    </a>
+  </section>
+
+  <section class="sec off">
+    <h2>Channels not yet acquired</h2>
+    <p class="lede">On the bench. No dates — they go live when the code they describe ships.</p>
+
+    <div class="ch dead rv">
+      <span class="label">draft<b style="color:var(--ink-3)">CH4</b></span>
+      <div>
+        <h3>Fast Without Giving Up the Guarantees</h3>
+        <p>Where bounds checks actually cost you, what the profiler says versus what everyone assumes, and how little <code>unsafe</code> you need once you can measure.</p>
+        <span class="nosig">no signal</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none">
+        <path d="M0,23 H120" stroke-dasharray="3 4"></path>
+      </svg>
+    </div>
+
+    <div class="ch dead rv">
+      <span class="label">draft<b style="color:var(--ink-3)">CH5</b></span>
+      <div>
+        <h3>Designing an API You Cannot Misuse</h3>
+        <p>Errors that live in the signature instead of the docs, constructors that refuse invalid state, and what that costs in ergonomics.</p>
+        <span class="nosig">no signal</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none">
+        <path d="M0,23 H120" stroke-dasharray="3 4"></path>
+      </svg>
+    </div>
+  </section>
+
+  <footer>
+    Thomas Stephan · <a href="https://github.com/karhunen-loeve">github.com/karhunen-loeve</a><br>
+    Instrumented with <a href="https://github.com/karhunen-loeve/fovea">fovea</a> ·
+    <a href="https://crates.io/crates/fovea">crates.io</a> ·
+    <a href="https://docs.rs/fovea">docs.rs</a> ·
+    <a href="../feed.xml">atom feed</a><br>
+    A personal project, unaffiliated with my employer.
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- scroll reveal (cards + traces) ----
+  var rv = document.querySelectorAll('.rv');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); }
+      });
+    }, { threshold: .2, rootMargin: '0px 0px -8% 0px' });
+    rv.forEach(function (e) { io.observe(e); });
+  } else {
+    rv.forEach(function (e) { e.classList.add('on'); });
+  }
+
+  // ---- the scope trace: three KL basis harmonics with phosphor persistence ----
+  var cv = document.getElementById('scope');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var W = 0, H = 0, dpr = Math.min(devicePixelRatio || 1, 2);
+
+  function size() {
+    var r = cv.getBoundingClientRect();
+    W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = '#04070a'; ctx.fillRect(0, 0, W, H);
+  }
+  size();
+  addEventListener('resize', size);
+
+  var TRACES = [
+    { col: '53,255,196',  k: 1, amp: .34, sp: .00042, ph: 0 },
+    { col: '255,179,64',  k: 2, amp: .22, sp: .00061, ph: 1.7 },
+    { col: '183,139,255', k: 3, amp: .15, sp: .00083, ph: 3.4 }
+  ];
+
+  function draw(t) {
+    // phosphor decay instead of a hard clear
+    ctx.fillStyle = 'rgba(4,7,10,0.10)';
+    ctx.fillRect(0, 0, W, H);
+
+    for (var i = 0; i < TRACES.length; i++) {
+      var tr = TRACES[i];
+      ctx.beginPath();
+      for (var x = 0; x <= W; x += 2) {
+        var u = x / W;
+        // a Karhunen–Loève-ish basis: cosine harmonic, slowly drifting phase,
+        // amplitude-modulated so the trace breathes
+        var env = 0.72 + 0.28 * Math.sin(t * tr.sp * 0.6 + tr.ph);
+        var y = H / 2
+              - Math.cos(Math.PI * tr.k * u + t * tr.sp + tr.ph) * H * tr.amp * env
+              - Math.sin(Math.PI * (tr.k + 4) * u - t * tr.sp * 1.9) * H * 0.022;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = 'rgba(' + tr.col + ',0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = 'rgba(' + tr.col + ',0.85)';
+      ctx.shadowBlur = 10;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  if (reduce) { draw(0); return; }
+  (function loop(t) { draw(t); requestAnimationFrame(loop); })(0);
+})();
+</script>
+</body>
+</html>
