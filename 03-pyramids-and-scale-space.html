@@ -568,9 +568,10 @@
 
 <span class="cmt">// And coming down is an exact, named mapping. Trap 3 has one implementation, not N:</span>
 <span class="kw">let</span> p_full = level.to_base(p_local);
-<span class="cmt">// = origin_offset + pixel_distance ·  p_local, and the half-pixel term is part of the</span>
-<span class="cmt">// contract of *how this level was built*, not folklore. Keypoints carry a continuous</span>
-<span class="cmt">// σ in base-image units. Nothing to unpack, nothing to sign-extend.</span></code></pre>
+<span class="cmt">// = origin_offset + pixel_distance · p_local, and the half-pixel term is part of</span>
+<span class="cmt">// the contract of *how this level was built*, not something you had to be at the</span>
+<span class="cmt">// campfire for. Keypoints carry a continuous σ in base-image units.</span>
+<span class="cmt">// Nothing to unpack, nothing to sign-extend.</span></code></pre>
 
 <p>And because this is the same library from part 2: building any of it from a gamma-encoded image is still a compile error. A pyramid is blurs all the way down, so every level would repeat the 128-vs-188 mistake, so the type system demands linear light at the front door.</p>
 
