@@ -548,7 +548,7 @@
 
 <p>If “half a pixel” sounds precious, consider that whole framework ecosystems fought a multi-year war over exactly this: the infamous <code>align_corners</code> flag, whose default was wrong in one major deep-learning framework for years and whose semantics still differ between the ones you use today. Sub-pixel keypoints, optical flow, stereo: the entire point of these algorithms is precision <em>below</em> one pixel. A convention mismatch eats the whole error budget before your algorithm even starts.</p>
 
-<p class="pull">Three traps, one pattern: the pyramid’s geometry (parent sizes, blur levels, grid offsets) lives in nobody’s data structure. It lives in comments, conventions, and folklore.</p>
+<p class="pull">Three traps, one pattern: the pyramid’s geometry (parent sizes, blur levels, grid offsets) lives in nobody’s data structure. It lives in comments, in conventions, and in rules chanted around a campfire on a foggy night, whose songs have faded by morning.</p>
 
 <h2>Give the geometry a home</h2>
 
