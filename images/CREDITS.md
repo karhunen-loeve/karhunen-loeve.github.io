@@ -36,7 +36,28 @@ real, measurable, and invisible to the eye.
 The full-size original is deliberately not committed; it can be re-downloaded
 from the Commons page whenever the figure needs regenerating.
 
-## `profile.jpg`
+## `blue-face_rgb.png`, `blue-face_bgr.png`
 
-Photograph of the site author. All rights reserved; not covered by the
-repository licence.
+Fig. 2 in `01-rgb-bgr-the-blue-face-bug.html`. One image written twice: as it
+is, and as code that believes the buffer is BGR displays it. No colour is
+invented; the pixels are relabelled and then converted honestly.
+
+**Source:** `profile-comic.jpg`, an AI-stylised version of the author's own
+portrait photograph. Own work, no third-party rights.
+
+**How they were produced:**
+
+```sh
+cargo run --release --bin channel_swap -- \
+    --input blog/images/profile-comic.jpg --out-dir blog/images \
+    --width 320 --name blue-face
+```
+
+Generator: `fovea-examples/src/channel_swap.rs`. The reduction to 320 px runs
+in linear light, so a figure about channel order does not quietly demonstrate
+the gamma bug from part 2 as well.
+
+## `profile.jpg`, `profile-comic.jpg`
+
+Photograph of the site author and an AI-stylised version of it. Own work; all
+rights reserved, not covered by the repository licence.

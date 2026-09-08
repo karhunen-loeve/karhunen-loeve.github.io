@@ -136,6 +136,19 @@
   .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
   .byline a { color: var(--accent); text-decoration: none; }
   .byline a:hover { text-decoration: underline; }
+  /* ---------- side-by-side raster figure ---------- */
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; justify-items: center; }
+  .pair div { margin: 0; }
+  .pair img {
+    display: block; width: 100%; height: auto; max-width: 320px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  }
+  .pair .lbl {
+    font: 600 .75rem/1.4 var(--mono); letter-spacing: .04em;
+    margin: .4rem 0 0; color: var(--ink-2);
+  }
+  @media (max-width: 34rem) { .pair { grid-template-columns: 1fr; } }
+
   /* ── browser-tools rail ── begin ──────────────────────────────────────── */
   :root { --fv-w: 15.5rem; }
   .fv-rail, .fv-rail-toggle {
@@ -364,35 +377,19 @@ plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span><
 <p>And every vision developer gets lucky, because <em>this</em> version of the bug is loud. A blue face is obvious. You laugh, you add <code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</code>, you move on.</p>
 
 <figure>
-<svg viewBox="0 0 680 260" role="img" aria-label="A simple sunset scene drawn twice: once with correct warm colors, once with red and blue channels swapped so the sky turns blue and the sun turns cyan">
-  <text x="170" y="26" text-anchor="middle" class="svg-ink" font-size="14" font-weight="600">what the file contains</text>
-  <text x="510" y="26" text-anchor="middle" class="svg-ink" font-size="14" font-weight="600">what your code displayed</text>
-  <!-- correct sunset -->
-  <g>
-    <clipPath id="c1"><rect x="40" y="40" width="260" height="170" rx="10"/></clipPath>
-    <g clip-path="url(#c1)">
-      <rect x="40" y="40" width="260" height="170" fill="rgb(244,130,52)"/>
-      <rect x="40" y="40" width="260" height="60" fill="rgb(216,84,66)"/>
-      <circle cx="170" cy="140" r="34" fill="rgb(255,214,79)"/>
-      <rect x="40" y="160" width="260" height="50" fill="rgb(120,60,90)"/>
-    </g>
-    <rect x="40" y="40" width="260" height="170" rx="10" fill="none" stroke="var(--border)"/>
-    <text x="170" y="238" text-anchor="middle" class="svg-ink2" font-size="13">sunset, as photographed</text>
-  </g>
-  <!-- swapped sunset -->
-  <g>
-    <clipPath id="c2"><rect x="380" y="40" width="260" height="170" rx="10"/></clipPath>
-    <g clip-path="url(#c2)">
-      <rect x="380" y="40" width="260" height="170" fill="rgb(52,130,244)"/>
-      <rect x="380" y="40" width="260" height="60" fill="rgb(66,84,216)"/>
-      <circle cx="510" cy="140" r="34" fill="rgb(79,214,255)"/>
-      <rect x="380" y="160" width="260" height="50" fill="rgb(90,60,120)"/>
-    </g>
-    <rect x="380" y="40" width="260" height="170" rx="10" fill="none" stroke="var(--border)"/>
-    <text x="510" y="238" text-anchor="middle" class="svg-ink2" font-size="13">same bytes, channels swapped</text>
-  </g>
-</svg>
-<figcaption>Fig. 2. Channel order is invisible until you render. A sunset with R and B exchanged becomes an alien dawn. When a human looks at the output, the bug takes two seconds to spot. The problem: in production, no human looks.</figcaption>
+<div class="pair">
+  <div>
+    <img src="images/blue-face_rgb.png" width="320" height="320"
+         alt="A comic-style portrait of the author with natural skin tones, a dark blue shirt and a cool grey stone wall behind him.">
+    <p class="lbl">what the file contains</p>
+  </div>
+  <div>
+    <img src="images/blue-face_bgr.png" width="320" height="320"
+         alt="The identical bytes read as BGR: the face is cornflower blue, the shirt has turned rust brown and the grey wall has turned sandy yellow.">
+    <p class="lbl">what your code displayed</p>
+  </div>
+</div>
+<figcaption>Fig. 2. The same file, twice. Nothing was recomputed: the pixels were relabelled as BGR and then converted honestly for display. The centre of the face reads <code>[232, 178, 146]</code> in the file and arrives as <code>[146, 178, 232]</code> on screen. A human spots this in two seconds. In production, no human looks.</figcaption>
 </figure>
 
 <p>Now remove the human. Feed that swapped image into a neural network, a color-based blob detector, a skin-tone filter, a white-balance routine. None of them crash. None of them warn. They compute <em>confidently wrong answers</em>: a classifier trained on RGB quietly loses accuracy on BGR input, a "find the red marker" function finds blue markers, and nothing in any log file will ever tell you why.</p>
