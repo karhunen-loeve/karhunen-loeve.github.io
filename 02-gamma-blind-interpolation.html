@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>128 Is Not the Middle — Gamma, Interpolation, and the Bug in Every Resize</title>
-<meta name="description" content="Average black and white and you get 128. The correct answer is 188. Gamma-encoded pixels break every naive resize, blur, and blend — and the fix belongs in the type system.">
+<title>128 Is Not the Middle: Gamma, Interpolation, and the Bug in Every Resize</title>
+<meta name="description" content="Average black and white and you get 128. The correct answer is 188. Gamma-encoded pixels break every naive resize, blur, and blend. The fix belongs in the type system.">
 <meta name="author" content="Thomas Stephan">
 <link rel="canonical" href="https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html">
 <link rel="alternate" type="application/atom+xml" href="/feed.xml" title="Type-Safe Computer Vision">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Type-Safe Computer Vision">
-<meta property="og:title" content="128 Is Not the Middle — Gamma, Interpolation, and the Bug in Every Resize">
-<meta property="og:description" content="Average black and white and you get 128. The correct answer is 188. Gamma-encoded pixels break every naive resize, blur, and blend — and the fix belongs in the type system.">
+<meta property="og:title" content="128 Is Not the Middle: Gamma, Interpolation, and the Bug in Every Resize">
+<meta property="og:description" content="Average black and white and you get 128. The correct answer is 188. Gamma-encoded pixels break every naive resize, blur, and blend. The fix belongs in the type system.">
 <meta property="og:url" content="https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html">
 <meta property="article:author" content="Thomas Stephan">
 <meta property="article:published_time" content="@@DATE2@@">
@@ -129,10 +129,178 @@
   .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
   .byline a { color: var(--accent); text-decoration: none; }
   .byline a:hover { text-decoration: underline; }
+  /* ── browser-tools rail ── begin ──────────────────────────────────────── */
+  :root { --fv-w: 15.5rem; }
+  .fv-rail, .fv-rail-toggle {
+    --fv-bg: var(--panel);
+    --fv-ink: var(--ink);
+    --fv-ink-2: var(--ink-2);
+    --fv-muted: var(--ink-3);
+    --fv-line: var(--grid-2);
+    --fv-accent: var(--phos);
+    --fv-radius: 3px;
+    --fv-font: 500 .78rem/1.5 var(--mono);
+    --fv-mono: var(--mono);
+  }
+  .fv-rail {
+    position: fixed; z-index: 60; inset: 0 auto 0 0; width: var(--fv-w);
+    display: flex; flex-direction: column; gap: .85rem;
+    padding: 1.3rem 1rem 1.1rem;
+    background: var(--fv-bg); color: var(--fv-ink); font: var(--fv-font);
+    border-right: 1px solid var(--fv-line);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .fv-rail-kicker {
+    margin: 0; font: 700 .62rem/1 var(--fv-mono); letter-spacing: .18em;
+    text-transform: uppercase; color: var(--fv-muted);
+  }
+  .fv-rail-claim {
+    margin: 0; padding: .55rem .6rem; border-radius: var(--fv-radius);
+    border: 1px solid var(--fv-line);
+    font-size: .74rem; line-height: 1.5; color: var(--fv-ink-2);
+  }
+  .fv-rail-badge {
+    display: inline-block; margin-right: .4rem;
+    font: 700 .58rem/1 var(--fv-mono); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--fv-accent); border: 1px solid currentColor; border-radius: 99px;
+    padding: .2rem .42rem; vertical-align: .06em;
+  }
+  .fv-rail-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+  .fv-rail-item {
+    display: grid; grid-template-columns: 1.35rem 1fr; gap: .55rem; align-items: start;
+    padding: .5rem .55rem; border-radius: var(--fv-radius);
+    border: 1px solid transparent; text-decoration: none; color: inherit;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  a.fv-rail-item:hover, a.fv-rail-item:focus-visible {
+    border-color: var(--fv-accent); color: var(--fv-accent); outline: none;
+  }
+  a.fv-rail-item[aria-current="page"] { border-color: var(--fv-accent); color: var(--fv-accent); }
+  .fv-rail-item svg { width: 1.35rem; height: 1.35rem; display: block; margin-top: .1rem; }
+  .fv-rail-name { display: block; font-weight: 600; }
+  .fv-rail-desc { display: block; font-size: .71rem; line-height: 1.4; color: var(--fv-muted); margin-top: .1rem; }
+  .fv-rail-item.is-planned { color: var(--fv-muted); cursor: default; }
+  .fv-rail-item.is-planned .fv-rail-name { font-weight: 500; }
+  .fv-rail-soon {
+    font: 700 .55rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--fv-muted); border: 1px solid var(--fv-line); border-radius: 99px;
+    padding: .18rem .38rem; margin-left: .35rem; vertical-align: .1em;
+  }
+  .fv-rail-foot {
+    margin: auto 0 0; padding-top: .8rem; border-top: 1px solid var(--fv-line);
+    font-size: .69rem; line-height: 1.55; color: var(--fv-muted);
+  }
+  .fv-rail-foot a { color: inherit; }
+  .fv-rail-toggle {
+    position: fixed; z-index: 61; left: .7rem; bottom: .7rem;
+    display: none; align-items: center; gap: .45rem;
+    padding: .55rem .8rem; border-radius: 99px; cursor: pointer;
+    background: var(--fv-bg); color: var(--fv-ink);
+    border: 1px solid var(--fv-line);
+    font: 700 .68rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    box-shadow: 0 4px 18px rgba(0,0,0,.35);
+  }
+  .fv-rail-toggle svg { width: .95rem; height: .95rem; }
+  body { padding-left: var(--fv-w); }
+  @media (max-width: 62rem) {
+    body { padding-left: 0; }
+    .fv-rail {
+      transform: translateX(-102%); transition: transform .22s ease;
+      box-shadow: 0 0 40px rgba(0,0,0,.45); width: min(19rem, 84vw);
+    }
+    .fv-rail.open { transform: none; }
+    .fv-rail-toggle { display: inline-flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fv-rail { transition: none; }
+  }
+  /* ── browser-tools rail ── end ────────────────────────────────────────── */
 </style>
 </head>
 <body>
 <canvas id="cells" aria-hidden="true"></canvas>
+<!-- browser-tools rail: begin -->
+<button class="fv-rail-toggle" type="button" aria-expanded="false" aria-controls="fv-rail">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+    <path d="M2 4h12M2 8h12M2 12h12"/>
+  </svg>
+  Tools
+</button>
+
+<nav class="fv-rail" id="fv-rail" aria-label="Browser tools">
+  <p class="fv-rail-kicker">Browser tools</p>
+  <p class="fv-rail-claim">
+    <span class="fv-rail-badge">wasm</span>
+    These run <strong>on your machine</strong>. The image you pick is decoded, measured and
+    drawn inside this tab. It is never uploaded, and the page makes no network request once
+    it has loaded.
+  </p>
+  <ul class="fv-rail-list">
+    <li>
+      <a class="fv-rail-item" href="tools/fast-corners.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M4 20V8l8-4 8 4v12"/><circle cx="12" cy="12" r="2.2"/>
+          <path d="M12 4v3.8M4 8l6 2.9M20 8l-6 2.9M12 14.2V20"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">FAST corners</span>
+          <span class="fv-rail-desc">Segment test, ranked and refined to sub-pixel</span>
+        </span>
+      </a>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">PNG chunks<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Every chunk, and which colour signal is missing</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M3 20C7 20 8 4 21 4"/><path d="M3 20h18"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">Gamma playground<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Resize in sRGB and in linear light, side by side</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">Resize weights<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">The tap table, and whose convention it matches</span>
+        </span>
+      </span>
+    </li>
+  </ul>
+  <p class="fv-rail-foot">
+    Powered by <a href="https://github.com/karhunen-loeve/fovea">fovea</a>, a type-safe computer
+    vision crate for Rust, compiled to WebAssembly.
+    <br><a href="tools/index.html">All tools</a>
+  </p>
+</nav>
+
+<script>
+(function () {
+  var rail = document.getElementById("fv-rail");
+  var btn = document.querySelector(".fv-rail-toggle");
+  if (!rail || !btn) return;
+  btn.addEventListener("click", function () {
+    var open = rail.classList.toggle("open");
+    btn.setAttribute("aria-expanded", String(open));
+  });
+})();
+</script>
+<!-- browser-tools rail: end -->
 <div class="mast">
   <a class="brand" href="/">Karhunen-Loeve</a>
   <span>type-safe computer vision</span>
@@ -143,12 +311,12 @@
 
 <p class="kicker">Type-Safe Computer Vision · Part 2 of 3</p>
 <h1>128 Is Not the Middle</h1>
-<p class="dek">Average a black pixel and a white pixel. You wrote <code>(0&nbsp;+&nbsp;255)&nbsp;/&nbsp;2</code> and got 128 — and that answer is wrong by a margin you can see from across the room. Welcome to the most widespread bug in image processing.</p>
+<p class="dek">Average a black pixel and a white pixel. You wrote <code>(0&nbsp;+&nbsp;255)&nbsp;/&nbsp;2</code> and got 128. That answer is wrong by a margin you can see from across the room. Welcome to the most widespread bug in image processing.</p>
 <p class="byline">Thomas Stephan · <time datetime="@@DATE2@@">@@HUMAN2@@</time> · <a href="/">Series index</a></p>
 
 <h2>A one-line quiz</h2>
 
-<p>You are downscaling a tiny image: a 2×2 checkerboard of pure black and pure white, shrinking to a single pixel. Physically, that pixel should emit exactly half the light of white — it replaces an area that was half black, half white. What value do you store?</p>
+<p>You are downscaling a tiny image: a 2×2 checkerboard of pure black and pure white, shrinking to a single pixel. Physically, that pixel should emit exactly half the light of white, because it replaces an area that was half black, half white. What value do you store?</p>
 
 <figure>
 <svg viewBox="0 0 680 250" role="img" aria-label="A black and white checkerboard downscaled two ways: naive byte averaging gives a dark gray of value 128; averaging in linear light gives the visually correct gray of value 188">
@@ -166,7 +334,7 @@
   <g>
     <rect x="290" y="40" width="90" height="70" rx="8" fill="rgb(128,128,128)"/>
     <text x="395" y="65" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">(0+255)/2 = 128</tspan></text>
-    <text x="395" y="86" class="svg-ink2" font-size="13">naive byte average — clearly too dark</text>
+    <text x="395" y="86" class="svg-ink2" font-size="13">naive byte average, clearly too dark</text>
   </g>
   <!-- correct -->
   <g>
@@ -176,14 +344,14 @@
   </g>
   <text x="340" y="232" text-anchor="middle" class="svg-muted" font-size="12">Squint at the checkerboard: it blurs toward the bottom swatch, not the top one.</text>
 </svg>
-<figcaption>Fig. 1 — The squint test. Defocus your eyes and the checkerboard melts into a gray. That gray matches <strong>188</strong>, not 128 — your eye averages <em>light</em>, and so does every camera lens. Naive code averages <em>bytes</em>.</figcaption>
+<figcaption>Fig. 1. The squint test. Defocus your eyes and the checkerboard melts into a gray. That gray matches <strong>188</strong>, not 128. Your eye averages <em>light</em>, and so does every camera lens. Naive code averages <em>bytes</em>.</figcaption>
 </figure>
 
 <p>If your answer was 128, you are in excellent company: for years this was the default behavior of nearly every image library, browser, and game engine, and it is still the default in most computer-vision code today. It is also measurably, visibly wrong. The correct answer is <strong>188</strong>.</p>
 
 <h2>The trick: pixel values aren’t light</h2>
 
-<p>Here is the secret those three bytes never told you. The numbers stored in an ordinary image — a JPEG, a PNG, a camera frame — are not amounts of light. They are <em>sRGB-encoded</em> values: light that has been run through a compression curve (a “gamma” curve) before storage. The curve exists for a good reason — human vision is far more sensitive to differences in shadows than in highlights, so encoding spends more of its 256 codes on dark tones. But it means the scale is not linear:</p>
+<p>Here is the secret those three bytes never told you. The numbers stored in an ordinary image (a JPEG, a PNG, a camera frame) are not amounts of light. They are <em>sRGB-encoded</em> values: light that has been run through a compression curve (a “gamma” curve) before storage. The curve exists for a good reason: human vision is far more sensitive to differences in shadows than in highlights, so encoding spends more of its 256 codes on dark tones. But it means the scale is not linear:</p>
 
 <figure>
 <svg viewBox="0 0 680 340" role="img" aria-label="Line chart of the sRGB decoding curve: stored value on the x axis from 0 to 255, emitted light on the y axis from 0 to 100 percent. The curve bows below the diagonal; stored 128 maps to about 22 percent light and stored 188 maps to about 50 percent light">
@@ -234,7 +402,7 @@
   <circle cx="490" cy="155" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
   <text x="500" y="150" class="svg-ink" font-size="12.5" font-weight="600">stored 188 → ≈50%</text>
 </svg>
-<figcaption>Fig. 2 — The sRGB transfer curve. Stored values are a <em>compressed</em> code for light. The halfway <em>code</em> (128) sits at barely a fifth of the light; the halfway <em>light</em> (50%) is stored as 188. Any arithmetic that pretends the x-axis is the y-axis inherits this distortion.</figcaption>
+<figcaption>Fig. 2. The sRGB transfer curve. Stored values are a <em>compressed</em> code for light. The halfway <em>code</em> (128) sits at barely a fifth of the light; the halfway <em>light</em> (50%) is stored as 188. Any arithmetic that pretends the x-axis is the y-axis inherits this distortion.</figcaption>
 </figure>
 
 <p>Follow the checkerboard through both pipelines, with the actual numbers:</p>
@@ -281,12 +449,12 @@
   <rect x="574" y="210" width="52" height="42" rx="6" fill="rgb(188,188,188)"/>
   <text x="600" y="270" text-anchor="middle" class="mono svg-ink" font-size="13">188 ✓</text>
 </svg>
-<figcaption>Fig. 3 — Same input, two pipelines. The red path does arithmetic on the <em>code</em>; the green path decodes to light, averages, and re-encodes. Three extra steps, one visibly different answer.</figcaption>
+<figcaption>Fig. 3. Same input, two pipelines. The red path does arithmetic on the <em>code</em>; the green path decodes to light, averages, and re-encodes. Three extra steps, one visibly different answer.</figcaption>
 </figure>
 
 <h2>This is every resize, every blur, every blend</h2>
 
-<p>“Fine,” you say, “but who averages checkerboards?” <em>You do.</em> Constantly. Downscaling an image averages neighborhoods of pixels. Bilinear interpolation is a weighted average of four pixels. Gaussian blur is a weighted average of many. Alpha blending, anti-aliasing, feathered masks, image pyramids — all of it is the same operation: <strong>a weighted average of pixel values</strong>. Run any of them on encoded values and every single output pixel is pulled toward black, exactly as 128 was.</p>
+<p>“Fine,” you say, “but who averages checkerboards?” <em>You do.</em> Constantly. Downscaling an image averages neighborhoods of pixels. Bilinear interpolation is a weighted average of four pixels. Gaussian blur is a weighted average of many. Alpha blending, anti-aliasing, feathered masks, image pyramids. All of it is the same operation: <strong>a weighted average of pixel values</strong>. Run any of them on encoded values and every single output pixel is pulled toward black, exactly as 128 was.</p>
 
 <p>Interpolation makes the damage easy to see. Ask for the point halfway between a dark pixel (40) and a bright pixel (220):</p>
 
@@ -326,52 +494,52 @@
     <text x="504" y="216" class="svg-ink2" font-size="12.5">bright (linear)</text>
   </g>
 </svg>
-<figcaption>Fig. 4 — Top: the naive gradient sags dark; its midpoint is 130 where the true half-light point is 163. Bottom: blending pure red and pure green on bytes gives a muddy olive — in linear light the mixture stays bright, as two overlapping stage lights would. Dark edges around bright objects after a blur? Same bug.</figcaption>
+<figcaption>Fig. 4. Top: the naive gradient sags dark; its midpoint is 130 where the true half-light point is 163. Bottom: blending pure red and pure green on bytes gives a muddy olive. In linear light the mixture stays bright, as two overlapping stage lights would. Dark edges around bright objects after a blur? Same bug.</figcaption>
 </figure>
 
-<p>This is why gamma-ignorant thumbnails look slightly lifeless, why blurred highlights grow dark halos, and why a famous test image — fine black-and-white texture that encodes a hidden picture — turns into a flat gray mush in almost every image scaler ever tested. The internet has re-discovered this bug on a loop for two decades. It has a name, a literature, and a fan club, and it still ships in production, everywhere, today.</p>
+<p>This is why gamma-ignorant thumbnails look slightly lifeless, why blurred highlights grow dark halos, and why a famous test image (fine black-and-white texture that encodes a hidden picture) turns into a flat gray mush in almost every image scaler ever tested. The internet has re-discovered this bug on a loop for two decades. It has a name, a literature, and a fan club, and it still ships in production, everywhere, today.</p>
 
-<p class="pull">Nobody’s math was wrong. The average was computed perfectly — on numbers that were never averages-compatible in the first place.</p>
+<p class="pull">Nobody’s math was wrong. The average was computed perfectly, on numbers that were never averages-compatible in the first place.</p>
 
 <h2>Look at what kind of bug this is</h2>
 
-<p>Once more, there is no logic error. The interpolation formula is textbook-correct. The bug is that the formula was applied to <em>encoded</em> values as if they were <em>linear</em> ones — two kinds of numbers that happen to share the same byte width, living in the same arrays, with nothing anywhere to tell them apart. That’s not a logic bug. It is a <strong>type bug</strong>. An <code>ndarray</code> of <code>uint8</code> cannot say “I am gamma-encoded; please don’t do arithmetic on me,” so nothing stops you. Or your teammate. Or the coding agent that just cheerfully wrote <code>cv2.resize</code> into your pipeline, exactly as ten thousand tutorials taught it to.</p>
+<p>Once more, there is no logic error. The interpolation formula is textbook-correct. The bug is that the formula was applied to <em>encoded</em> values as if they were <em>linear</em> ones: two kinds of numbers that happen to share the same byte width, living in the same arrays, with nothing anywhere to tell them apart. That’s not a logic bug. It is a <strong>type bug</strong>. An <code>ndarray</code> of <code>uint8</code> cannot say “I am gamma-encoded; please don’t do arithmetic on me,” so nothing stops you. Or your teammate. Or the coding agent that just cheerfully wrote <code>cv2.resize</code> into your pipeline, exactly as ten thousand tutorials taught it to.</p>
 
 <h2>What if the image knew it was encoded?</h2>
 
-<p>In <a href="https://crates.io/crates/fovea">fovea</a>, gamma-encoded and linear pixels are <em>different types</em>. <code>Srgb8</code> and <code>Rgb8</code> have identical bytes — but only the linear one implements the trait that blending operations require. The compiler knows the difference, so it enforces the physics:</p>
+<p>In <a href="https://crates.io/crates/fovea">fovea</a>, gamma-encoded and linear pixels are <em>different types</em>. <code>Srgb8</code> and <code>Rgb8</code> have identical bytes, but only the linear one implements the trait that blending operations require. The compiler knows the difference, so it enforces the physics:</p>
 
 <pre><code><span class="kw">use</span> fovea::pixel::{<span class="ty">Srgb8</span>, <span class="ty">RgbF32</span>};
 <span class="kw">use</span> fovea::transform::{<span class="ty">Bilinear</span>, <span class="ty">SrgbGamma</span>, convert_image, resize};
 
-<span class="kw">let</span> photo: Image&lt;<span class="ty">Srgb8</span>&gt; = <span class="cmt">/* decoded from a PNG — gamma-encoded, like every photo */</span>;
+<span class="kw">let</span> photo: Image&lt;<span class="ty">Srgb8</span>&gt; = <span class="cmt">/* decoded from a PNG, gamma-encoded like every photo */</span>;
 
 resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
 <span class="err">// error[E0277]: `Srgb8` does not implement `LinearSpace`</span>
 <span class="err">//   = interpolation blends samples; blending gamma-encoded values is not meaningful</span></code></pre>
 
-<p>The compile error <em>is</em> the lesson from this article, delivered at the exact line where it applies, before the program ever runs. And the fix reads like the green path in Fig. 3 — decode, operate, re-encode, each step named:</p>
+<p>The compile error <em>is</em> the lesson from this article, delivered at the exact line where it applies, before the program ever runs. And the fix reads like the green path in Fig. 3: decode, operate, re-encode, each step named:</p>
 
-<pre><code><span class="cmt">// 1. decode the gamma curve — bytes become linear light</span>
+<pre><code><span class="cmt">// 1. decode the gamma curve, bytes become linear light</span>
 <span class="kw">let</span> light: Image&lt;<span class="ty">RgbF32</span>&gt; = convert_image(&amp;photo, <span class="ty">SrgbGamma</span>);
 
-<span class="cmt">// 2. now averaging is physically meaningful — resize away</span>
+<span class="cmt">// 2. now averaging is physically meaningful, resize away</span>
 <span class="kw">let</span> small = resize(&amp;light, Size::new(800, 600), <span class="ty">Bilinear</span>);
 
 <span class="cmt">// 3. re-encode for storage/display</span>
 <span class="kw">let</span> out: Image&lt;<span class="ty">Srgb8</span>&gt; = convert_image(&amp;small, <span class="ty">SrgbGamma</span>);</code></pre>
 
-<p>Note what the type system did <em>not</em> do: it didn’t silently linearize behind your back, and it didn’t forbid anything useful. If you genuinely want nearest-neighbor sampling on encoded data — which copies pixels and never blends them — that compiles fine, because it’s actually valid. The rule is precise: <em>operations that mix values require values that may be mixed.</em> Everything the checkerboard taught us, encoded in one trait bound.</p>
+<p>Note what the type system did <em>not</em> do: it didn’t silently linearize behind your back, and it didn’t forbid anything useful. If you genuinely want nearest-neighbor sampling on encoded data (which copies pixels and never blends them), that compiles fine, because it’s actually valid. The rule is precise: <em>operations that mix values require values that may be mixed.</em> Everything the checkerboard taught us, encoded in one trait bound.</p>
 
-<p>One line of forum wisdom — “convert to linear before you blur” — has been repeated for twenty years and forgotten for twenty years. A type checker never forgets. As more vision code gets written by agents trained on those very tutorials, that stubbornness stops being a nicety and becomes the safety rail.</p>
+<p>One line of forum wisdom,  “convert to linear before you blur” , has been repeated for twenty years and forgotten for twenty years. A type checker never forgets. As more vision code gets written by agents trained on those very tutorials, that stubbornness stops being a nicety and becomes the safety rail.</p>
 
-<p>So far our bugs lived inside a single image. The final part climbs a whole stack of them — image pyramids and scale-space, where sizes stop matching, coordinates drift by half a pixel per level, and one library packed three numbers into one integer and called it an <code>octave</code>.</p>
+<p>So far our bugs lived inside a single image. The final part climbs a whole stack of them: image pyramids and scale-space, where sizes stop matching, coordinates drift by half a pixel per level, and one library packed three numbers into one integer and called it an <code>octave</code>.</p>
 
 <div class="footer-nav">
-  <strong>Type-Safe Computer Vision</strong> — a series about bugs the compiler could have caught:
-  <a href="01-rgb-bgr-the-blue-face-bug.html">Part 1: The Blue Face Bug — RGB vs BGR</a> ·
+  <strong>Type-Safe Computer Vision</strong>, a series about bugs the compiler could have caught:
+  <a href="01-rgb-bgr-the-blue-face-bug.html">Part 1: The Blue Face Bug, RGB vs BGR</a> ·
   Part 2: 128 Is Not the Middle ·
-  <a href="03-pyramids-and-scale-space.html">Part 3: Climbing the Pyramid — resolution, blur, and lost coordinates</a>
+  <a href="03-pyramids-and-scale-space.html">Part 3: Climbing the Pyramid, resolution, blur, and lost coordinates</a>
   <br><br>
   <a href="/">Series index</a> · <a href="/feed.xml">Atom feed</a> · <a href="https://github.com/karhunen-loeve/fovea">fovea on GitHub</a>
 </div>

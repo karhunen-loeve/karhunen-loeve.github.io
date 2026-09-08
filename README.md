@@ -1,4 +1,4 @@
-# Type-Safe Computer Vision — blog
+# Type-Safe Computer Vision, the blog
 
 Source of <https://karhunen-loeve.github.io>. Static HTML, no build step, no
 dependencies. Each post is a single self-contained file (inline CSS, inline
@@ -7,12 +7,12 @@ SVG, no external assets) and can be opened straight from disk to proofread.
 | File | Post |
 |---|---|
 | `index.html` | Series landing page |
-| `01-rgb-bgr-the-blue-face-bug.html` | Part 1 — The Blue Face Bug |
-| `02-gamma-blind-interpolation.html` | Part 2 — 128 Is Not the Middle |
-| `03-pyramids-and-scale-space.html` | Part 3 — Climbing the Pyramid |
+| `01-rgb-bgr-the-blue-face-bug.html` | Part 1: The Blue Face Bug |
+| `02-gamma-blind-interpolation.html` | Part 2: 128 Is Not the Middle |
+| `03-pyramids-and-scale-space.html` | Part 3: Climbing the Pyramid |
 | `tools/` | Browser tools: computer vision running client-side on WebAssembly |
 | `feed.xml` | Atom feed |
-| `images/` | The only external assets — currently just the portrait on `index.html` |
+| `images/` | The only external assets, currently just the portrait on `index.html` |
 | `.nojekyll` | Tells GitHub Pages to serve the files verbatim |
 
 ## Browser tools
@@ -57,24 +57,22 @@ Two decisions are worth knowing before touching those pages:
    ```
 
 3. **Push to `main`.** Pages → Deploy from branch → `main` / root.
-4. **Verify** — feed at <https://validator.w3.org/feed/>, link preview at
+4. **Verify.** Feed at <https://validator.w3.org/feed/>, link preview at
    <https://cards-dev.twitter.com/validator> or by pasting the URL into a
    Mastodon draft.
-5. **Announce, one post per week.** Lead with Part 2 (`128 Is Not the Middle`) —
-   the strongest standalone hook. r/rust → This Week in Rust → Hacker News →
+5. **Announce, one post per week.** Lead with Part 2 (`128 Is Not the Middle`), the strongest standalone hook. r/rust → This Week in Rust → Hacker News →
    lobste.rs → r/computervision.
 
 ## Custom domain
 
 Add a `CNAME` file containing the bare hostname, then point a `CNAME` DNS
 record at `karhunen-loeve.github.io`. Afterwards, update the absolute URLs in
-`feed.xml`, the `<link rel="canonical">` and the `og:url` in every post —
-`grep -rl karhunen-loeve.github.io .` finds all of them.
+`feed.xml`, the `<link rel="canonical">` and the `og:url` in every post. `grep -rl karhunen-loeve.github.io .` finds all of them.
 
 ## Adding a post
 
 The shared `<style>` block is copied into every file, so a design change is an
-N-file edit. That is deliberate at this size — the payoff is that each post
+N-file edit. That is deliberate at this size: the payoff is that each post
 survives as a single portable file. Once that gets annoying (around post 5 or
 6), move to [Zola](https://www.getzola.org): single Rust binary, no npm, and
 the CSS becomes one template.
