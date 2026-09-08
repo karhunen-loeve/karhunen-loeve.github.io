@@ -135,6 +135,34 @@
   .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
   .byline a { color: var(--accent); text-decoration: none; }
   .byline a:hover { text-decoration: underline; }
+  /* ---------- side-by-side raster figure and the try-it-yourself panel ---------- */
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; justify-items: center; }
+  .pair figure, .pair div { margin: 0; }
+  .pair img, .pair canvas {
+    /* never scaled up past its own pixels: this figure is about what happens
+       to fine detail, so resampling it again in the browser would be absurd */
+    display: block; width: 100%; height: auto; max-width: 320px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+    image-rendering: auto;
+  }
+  .pair .lbl {
+    font: 600 .75rem/1.4 var(--mono); letter-spacing: .04em;
+    margin: .4rem 0 0; color: var(--ink-2);
+  }
+  .pair .lbl .num { color: var(--muted); font-weight: 500; letter-spacing: 0; }
+  .credit { display: block; color: var(--muted); font-size: .78rem; margin-top: .5rem; }
+  .credit a { color: var(--muted); }
+  .tryit {
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; margin: 1.8rem 0; background: var(--surface);
+  }
+  .tryit > h3 { margin: 0 0 .5rem; font-size: 1rem; }
+  .tryit p { font-size: .9rem; color: var(--ink-2); }
+  .tryit input[type=file] { font: inherit; font-size: .85rem; color: var(--ink-2); }
+  .tryit .readout { font: .8rem/1.5 var(--mono); color: var(--muted); margin: .7rem 0 0; }
+  .tryit .readout strong { color: var(--ink); font-weight: 600; }
+  @media (max-width: 34rem) { .pair { grid-template-columns: 1fr; } }
+
   /* ── browser-tools rail ── begin ──────────────────────────────────────── */
   :root { --fv-w: 15.5rem; }
   .fv-rail, .fv-rail-toggle {
@@ -503,25 +531,41 @@
 <figcaption>Fig. 4. Top: the naive gradient sags dark; its midpoint is 130 where the true half-light point is 163. Bottom: blending pure red and pure green on bytes gives a muddy olive. In linear light the mixture stays bright, as two overlapping stage lights would. Dark edges around bright objects after a blur? Same bug.</figcaption>
 </figure>
 
-<!-- TODO(figure): "gamma-ignorant thumbnails look slightly lifeless"
-     Needs a figure that shows the claim instead of asserting it: one source
-     image downscaled twice, naive byte average vs. average in linear light,
-     side by side at thumbnail size, same crop, same scale factor.
+<figure>
+<div class="pair">
+  <div>
+    <img src="images/gamma-thumb_naive.png" width="312" height="205"
+         alt="A backlit autumn scene reduced to thumbnail size by averaging the stored sRGB bytes. The sun's glow is smaller and the foliage against the sky reads darker and flatter.">
+    <p class="lbl">averaged as bytes <span class="num">— mean luminance 0.483</span></p>
+  </div>
+  <div>
+    <img src="images/gamma-thumb_linear.png" width="312" height="205"
+         alt="The same crop reduced the same way, but averaged in linear light. The sun's glow keeps its extent and the sunlit foliage stays bright.">
+    <p class="lbl">averaged in light <span class="num">— mean luminance 0.500</span></p>
+  </div>
+</div>
+<figcaption>Fig. 5. One photo, one crop, three halving steps, the same 5-tap kernel both times. The only difference is whether the sRGB curve was decoded before averaging. The left thumbnail is <strong>3.4&nbsp;%</strong> darker in mean linear luminance and its worst single channel is off by <strong>51</strong> codes out of 255. The error compounds with every step: 2.5&nbsp;% after two halvings, 3.4&nbsp;% after three, 4.2&nbsp;% after four. It is largest in the bare branches against bright sky and absent in the flat grass, because a uniform region averages to itself either way.
+<span class="credit">Source photo: <a href="https://commons.wikimedia.org/wiki/File:Autumn_afternoon_in_Wittelsbacher_Park,_Augsburg_(2015).jpg">Autumn afternoon in Wittelsbacher Park, Augsburg</a> by Paul Colin Hennig, <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>; both thumbnails are derivative works under the same licence. Generated with <a href="https://github.com/karhunen-loeve/fovea-examples">fovea-examples</a>, <code>gamma_thumbnails</code>.</span></figcaption>
+</figure>
 
-     Open questions before drawing:
-       - Source: a real photo would be most convincing, but every figure in
-         this series so far is hand-written SVG with no binary assets. A photo
-         means the first raster asset in the repo (path, license, size budget).
-       - Or keep it synthetic and stay in SVG: fine high-contrast texture
-         (foliage, specular highlights, white text on dark) is where the
-         effect is largest and it can be drawn procedurally.
-       - Needs a caption naming the measured difference, not just "looks
-         better" — e.g. mean luminance of both thumbnails.
-       - Companion figure to Fig. 4, which already shows the dark-halo case;
-         avoid repeating it.
-     Sources for the effect: docs/research/pyramid-scale-space-05-user-pain-points.md, section 4.
--->
 <p>This is why gamma-ignorant thumbnails look slightly lifeless, why blurred highlights grow dark halos, and why <a href="https://www.ericbrasseur.org/gamma.html">Eric Brasseur’s gamma test image</a> (a fine black-and-white pattern whose structure survives a correct downscale) collapses into flat gray in essentially every scaler he tried. The internet has re-discovered this bug on a loop for two decades: <a href="https://github.com/python-pillow/Pillow/issues/1604">Pillow</a> closed the request as out of scope, <a href="https://github.com/DarthSim/imgproxy/issues/145">imgproxy</a> and <a href="https://github.com/darktable-org/darktable/issues/13335">darktable</a> carry the same report, and it still ships in production, everywhere, today.</p>
+
+<section class="tryit" id="tryit" hidden>
+  <h3>Try it with your own photo</h3>
+  <p>Both thumbnails below are computed here, in this page, with the same box average over the same blocks. The only difference is whether the sRGB curve is decoded first. Nothing is uploaded: the file never leaves your machine.</p>
+  <p><input type="file" id="tryit-file" accept="image/*"></p>
+  <div class="pair" id="tryit-out" hidden>
+    <div>
+      <canvas id="tryit-naive"></canvas>
+      <p class="lbl">averaged as bytes</p>
+    </div>
+    <div>
+      <canvas id="tryit-linear"></canvas>
+      <p class="lbl">averaged in light</p>
+    </div>
+  </div>
+  <p class="readout" id="tryit-readout">Pick a photo with fine high-contrast detail — backlit foliage, a night skyline, white text on dark. Flat, mid-tone images have little to mix and will barely differ.</p>
+</section>
 
 <p class="pull">Nobody’s math was wrong. The average was computed perfectly, on numbers that were never averages-compatible in the first place.</p>
 
@@ -758,6 +802,132 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
   addEventListener('resize', function () {
     clearTimeout(t);
     t = setTimeout(function () { measure(); draw(); }, 150);
+  });
+})();
+</script>
+<script>
+/* ── try-it-yourself: the same box average, once on stored bytes and once in
+   linear light. The panel is hidden until this script runs, so a browser
+   without JS simply shows the static figure above. ───────────────────────── */
+(function () {
+  var panel = document.getElementById('tryit');
+  if (!panel || !window.createImageBitmap) return;
+  panel.hidden = false;
+
+  var TARGET = 320;   /* thumbnail width in px */
+  var CAP    = 2400;  /* source is pre-scaled to this width to bound memory */
+
+  /* sRGB transfer function, both directions. A 256-entry table for decode
+     because it runs once per source pixel per channel. */
+  var DECODE = new Float32Array(256);
+  for (var i = 0; i < 256; i++) {
+    var c = i / 255;
+    DECODE[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  }
+  function encode(v) {
+    v = v < 0 ? 0 : v > 1 ? 1 : v;
+    var s = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+    return Math.round(s * 255);
+  }
+
+  /* Box average over f×f blocks. `linear` decides whether the samples are
+     decoded to light before they are summed — that single flag is the whole
+     subject of this article. */
+  function reduce(src, f, outW, outH, linear) {
+    var out = new ImageData(outW, outH);
+    var sw = src.width, sd = src.data, od = out.data;
+    for (var y = 0; y < outH; y++) {
+      for (var x = 0; x < outW; x++) {
+        var r = 0, g = 0, b = 0, n = 0;
+        var y1 = Math.min((y + 1) * f, src.height);
+        var x1 = Math.min((x + 1) * f, sw);
+        for (var sy = y * f; sy < y1; sy++) {
+          for (var sx = x * f; sx < x1; sx++) {
+            var i = (sy * sw + sx) * 4;
+            if (linear) {
+              r += DECODE[sd[i]]; g += DECODE[sd[i + 1]]; b += DECODE[sd[i + 2]];
+            } else {
+              r += sd[i]; g += sd[i + 1]; b += sd[i + 2];
+            }
+            n++;
+          }
+        }
+        var o = (y * outW + x) * 4;
+        if (linear) {
+          od[o] = encode(r / n); od[o + 1] = encode(g / n); od[o + 2] = encode(b / n);
+        } else {
+          od[o] = Math.round(r / n); od[o + 1] = Math.round(g / n); od[o + 2] = Math.round(b / n);
+        }
+        od[o + 3] = 255;
+      }
+    }
+    return out;
+  }
+
+  /* Mean relative luminance, measured in linear light (Rec. 709 weights).
+     Averaging the stored bytes instead would repeat the mistake being
+     measured. */
+  function meanLuminance(img) {
+    var d = img.data, sum = 0, px = img.width * img.height;
+    for (var i = 0; i < d.length; i += 4) {
+      sum += 0.2126 * DECODE[d[i]] + 0.7152 * DECODE[d[i + 1]] + 0.0722 * DECODE[d[i + 2]];
+    }
+    return sum / px;
+  }
+
+  function show(canvas, img) {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.getContext('2d').putImageData(img, 0, 0);
+  }
+
+  var readout = document.getElementById('tryit-readout');
+  document.getElementById('tryit-file').addEventListener('change', function (ev) {
+    var file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    readout.textContent = 'reducing…';
+    createImageBitmap(file).then(function (bmp) {
+      /* Pre-scale large photos so the arrays stay manageable. Both paths get
+         the identical input, so this bounds memory without deciding the
+         comparison. */
+      var scale = Math.min(1, CAP / bmp.width);
+      var w = Math.max(1, Math.round(bmp.width * scale));
+      var h = Math.max(1, Math.round(bmp.height * scale));
+      var stage = document.createElement('canvas');
+      stage.width = w; stage.height = h;
+      var sctx = stage.getContext('2d', { willReadFrequently: true });
+      sctx.drawImage(bmp, 0, 0, w, h);
+      bmp.close && bmp.close();
+      var src = sctx.getImageData(0, 0, w, h);
+
+      var f = Math.max(1, Math.floor(w / TARGET));
+      var outW = Math.max(1, Math.floor(w / f));
+      var outH = Math.max(1, Math.floor(h / f));
+
+      var naive = reduce(src, f, outW, outH, false);
+      var linear = reduce(src, f, outW, outH, true);
+      show(document.getElementById('tryit-naive'), naive);
+      show(document.getElementById('tryit-linear'), linear);
+      document.getElementById('tryit-out').hidden = false;
+
+      var ln = meanLuminance(naive), ll = meanLuminance(linear);
+      var pct = ll > 0 ? 100 * (1 - ln / ll) : 0;
+      var worst = 0, a = naive.data, b = linear.data;
+      for (var i = 0; i < a.length; i += 4) {
+        for (var k = 0; k < 3; k++) {
+          var d = Math.abs(a[i + k] - b[i + k]);
+          if (d > worst) worst = d;
+        }
+      }
+      readout.innerHTML =
+        outW + '×' + outH + ' from ' + w + '×' + h + ', ' + f + '×' + f + ' blocks · ' +
+        'mean luminance <strong>' + ln.toFixed(4) + '</strong> as bytes vs. ' +
+        '<strong>' + ll.toFixed(4) + '</strong> in light · ' +
+        'the byte average is <strong>' + pct.toFixed(1) + '%</strong> darker, ' +
+        'worst channel off by <strong>' + worst + '</strong> codes';
+    }).catch(function (e) {
+      readout.textContent = 'could not read that file: ' + e;
+    });
   });
 })();
 </script>
