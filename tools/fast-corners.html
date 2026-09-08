@@ -247,6 +247,11 @@
     background: var(--code-bg); border: 1px solid var(--hairline); border-radius: 10px;
     padding: .9rem 1rem; overflow-x: auto; font: .82rem/1.6 var(--mono); margin: 0 0 1.4rem;
   }
+  /* same three token colours the articles use, so a snippet reads the same
+     way whether it sits in a post or in a tool page */
+  .cmt { color: var(--muted); }
+  .kw  { color: var(--accent); font-weight: 600; }
+  .ty  { color: #5fd3a6; }
 
   @media (prefers-reduced-motion: reduce) {
     .lamp[data-state="busy"]::before { animation: none; }
@@ -549,26 +554,26 @@ an arc.</p>
 <p>The module behind this page is a thin shell. Every number you just read came out of these
 calls, in this order:</p>
 
-<pre class="snippet"><code>use fovea::border::Skip;
-use fovea::features::detect::{fast, refine_corners, FastParams, SegmentTest};
-use fovea::features::retain_top_n;
-use fovea::transform::{convert_image, sobel_x, sobel_y};
+<pre class="snippet"><code><span class="kw">use</span> fovea::border::<span class="ty">Skip</span>;
+<span class="kw">use</span> fovea::features::detect::{fast, refine_corners, <span class="ty">FastParams</span>, <span class="ty">SegmentTest</span>};
+<span class="kw">use</span> fovea::features::retain_top_n;
+<span class="kw">use</span> fovea::transform::{convert_image, sobel_x, sobel_y};
 
-// The browser hands over sRGB. Undo the transfer curve before taking
-// luminance: averaging channels in sRGB moves every corner you find.
-let luma: Image&lt;MonoF32&gt; = convert_image(&amp;srgb, srgb_to_linear_luma);
+<span class="cmt">// The browser hands over sRGB. Undo the transfer curve before taking</span>
+<span class="cmt">// luminance: averaging channels in sRGB moves every corner you find.</span>
+<span class="kw">let</span> luma: <span class="ty">Image</span>&lt;<span class="ty">MonoF32</span>&gt; = convert_image(&amp;srgb, srgb_to_linear_luma);
 
-// Both silent failure modes are errors here, not empty results.
-let test = SegmentTest::try_new(0.08, 9)?;
-let params = FastParams::try_new(test, 3)?;
+<span class="cmt">// Both silent failure modes are errors here, not empty results.</span>
+<span class="kw">let</span> test = <span class="ty">SegmentTest</span>::try_new(0.08, 9)?;
+<span class="kw">let</span> params = <span class="ty">FastParams</span>::try_new(test, 3)?;
 
-// `Skip`: the ring does not fit within three pixels of the frame, and a
-// corner reported there would be made of invented samples.
-let mut corners = fast(&amp;luma, params, &amp;Skip);
-retain_top_n(&amp;mut corners, 400);
+<span class="cmt">// `Skip`: the ring does not fit within three pixels of the frame, and a</span>
+<span class="cmt">// corner reported there would be made of invented samples.</span>
+<span class="kw">let</span> <span class="kw">mut</span> corners = fast(&amp;luma, params, &amp;<span class="ty">Skip</span>);
+retain_top_n(&amp;<span class="kw">mut</span> corners, 400);
 
-// Detection puts corners on the grid. Accuracy is a separate step.
-refine_corners(&amp;mut corners, &amp;sobel_x(&amp;luma, &amp;Clamp), &amp;sobel_y(&amp;luma, &amp;Clamp), 2)?;</code></pre>
+<span class="cmt">// Detection puts corners on the grid. Accuracy is a separate step.</span>
+refine_corners(&amp;<span class="kw">mut</span> corners, &amp;sobel_x(&amp;luma, &amp;<span class="ty">Clamp</span>), &amp;sobel_y(&amp;luma, &amp;<span class="ty">Clamp</span>), 2)?;</code></pre>
 
 <p>The threshold slider is the <code>0.08</code>. The arc slider is the <code>9</code>. When you
 drag either one past the edge of what the detector can honestly do, you do not get an empty
