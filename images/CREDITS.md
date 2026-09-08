@@ -19,17 +19,19 @@ downloaded from the Commons page above):
 ```sh
 cargo run --release --bin gamma_thumbnails -- \
     --input ESO_-_Milky_Way.jpg --out-dir blog/images \
-    --levels 4 --crop 440,220,5120,2560 --name gamma-thumb
+    --levels 3 --crop 0,600,2560,1280 --name gamma-thumb
 ```
 
-Generator: `fovea-examples/src/gamma_thumbnails.rs`. One crop, four halving
+Generator: `fovea-examples/src/gamma_thumbnails.rs`. One crop, three halving
 steps of Gaussian blur plus decimation, identical in both paths. The generator
-prints the measured difference; for this crop the naive thumbnail is 19.9 %
-darker in mean linear luminance, worst single channel off by 43 codes out of
-255. A star field is the strong case, because a single bright pixel among
-fifteen dark ones lands on code 16 when the bytes are averaged and on 71 when
-the light is. An ordinary backlit photograph loses around 3 % under the same
-treatment — visible in a measurement, not to the eye.
+prints the measured difference; for this crop the naive thumbnail is 21.7 %
+darker in mean linear luminance, worst single channel off by 35 codes out of
+255. A crop of empty sky without the galactic band reaches 36 %.
+
+A star field is the strong case, because a single bright pixel among fifteen
+dark ones lands on code 16 when the bytes are averaged and on 71 when the light
+is. An ordinary backlit photograph loses around 3 % under the same treatment —
+real, measurable, and invisible to the eye.
 
 The full-size original is deliberately not committed; it can be re-downloaded
 from the Commons page whenever the figure needs regenerating.
