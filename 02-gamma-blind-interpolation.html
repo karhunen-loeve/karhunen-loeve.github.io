@@ -317,7 +317,7 @@
 
 <p class="kicker">Type-Safe Computer Vision · Part 2 of 3</p>
 <h1>128 Is Not the Middle</h1>
-<p class="dek">Average a black pixel and a white pixel. You wrote <code>(0&nbsp;+&nbsp;255)&nbsp;/&nbsp;2</code> and got 128. That answer is wrong by a margin you can see from across the room. Welcome to the most widespread bug in image processing.</p>
+<p class="dek">Average a black pixel and a white pixel. Your code computes 127.5, rounds it to 128, and stores it. That answer is wrong by a margin you can see from across the room. Welcome to a bug that hides inside every resize you have ever written.</p>
 <p class="byline">Thomas Stephan · <time datetime="@@DATE2@@">@@HUMAN2@@</time> · <a href="/">Series index</a></p>
 
 <h2>A one-line quiz</h2>
@@ -339,7 +339,7 @@
   <!-- naive -->
   <g>
     <rect x="290" y="40" width="90" height="70" rx="8" fill="rgb(128,128,128)"/>
-    <text x="395" y="65" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">(0+255)/2 = 128</tspan></text>
+    <text x="395" y="65" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">mean = 127.5 → 128</tspan></text>
     <text x="395" y="86" class="svg-ink2" font-size="13">naive byte average, clearly too dark</text>
   </g>
   <!-- correct -->
@@ -460,7 +460,7 @@
 
 <h2>This is every resize, every blur, every blend</h2>
 
-<p>“Fine,” you say, “but who averages checkerboards?” <em>You do.</em> Constantly. Downscaling an image averages neighborhoods of pixels. Bilinear interpolation is a weighted average of four pixels. Gaussian blur is a weighted average of many. Alpha blending, anti-aliasing, feathered masks, image pyramids. All of it is the same operation: <strong>a weighted average of pixel values</strong>. Run any of them on encoded values and every single output pixel is pulled toward black, exactly as 128 was.</p>
+<p>“Fine,” you say, “but who averages checkerboards?” <em>You do.</em> Constantly. Downscaling an image averages neighborhoods of pixels. Bilinear interpolation is a weighted average of four pixels. Gaussian blur is a weighted average of many. Alpha blending, anti-aliasing, feathered masks, image pyramids. All of it is the same operation: <strong>a weighted average of pixel values</strong>. Run any of them on encoded values and every output pixel that mixes different values is pulled toward black, exactly as 128 was, and the harder the contrast, the further.</p>
 
 <p>Interpolation makes the damage easy to see. Ask for the point halfway between a dark pixel (40) and a bright pixel (220):</p>
 
@@ -503,7 +503,25 @@
 <figcaption>Fig. 4. Top: the naive gradient sags dark; its midpoint is 130 where the true half-light point is 163. Bottom: blending pure red and pure green on bytes gives a muddy olive. In linear light the mixture stays bright, as two overlapping stage lights would. Dark edges around bright objects after a blur? Same bug.</figcaption>
 </figure>
 
-<p>This is why gamma-ignorant thumbnails look slightly lifeless, why blurred highlights grow dark halos, and why a famous test image (fine black-and-white texture that encodes a hidden picture) turns into a flat gray mush in almost every image scaler ever tested. The internet has re-discovered this bug on a loop for two decades. It has a name, a literature, and a fan club, and it still ships in production, everywhere, today.</p>
+<!-- TODO(figure): "gamma-ignorant thumbnails look slightly lifeless"
+     Needs a figure that shows the claim instead of asserting it: one source
+     image downscaled twice, naive byte average vs. average in linear light,
+     side by side at thumbnail size, same crop, same scale factor.
+
+     Open questions before drawing:
+       - Source: a real photo would be most convincing, but every figure in
+         this series so far is hand-written SVG with no binary assets. A photo
+         means the first raster asset in the repo (path, license, size budget).
+       - Or keep it synthetic and stay in SVG: fine high-contrast texture
+         (foliage, specular highlights, white text on dark) is where the
+         effect is largest and it can be drawn procedurally.
+       - Needs a caption naming the measured difference, not just "looks
+         better" — e.g. mean luminance of both thumbnails.
+       - Companion figure to Fig. 4, which already shows the dark-halo case;
+         avoid repeating it.
+     Sources for the effect: docs/research/pyramid-scale-space-05-user-pain-points.md, section 4.
+-->
+<p>This is why gamma-ignorant thumbnails look slightly lifeless, why blurred highlights grow dark halos, and why <a href="https://www.ericbrasseur.org/gamma.html">Eric Brasseur’s gamma test image</a> (a fine black-and-white pattern whose structure survives a correct downscale) collapses into flat gray in essentially every scaler he tried. The internet has re-discovered this bug on a loop for two decades: <a href="https://github.com/python-pillow/Pillow/issues/1604">Pillow</a> closed the request as out of scope, <a href="https://github.com/DarthSim/imgproxy/issues/145">imgproxy</a> and <a href="https://github.com/darktable-org/darktable/issues/13335">darktable</a> carry the same report, and it still ships in production, everywhere, today.</p>
 
 <p class="pull">Nobody’s math was wrong. The average was computed perfectly, on numbers that were never averages-compatible in the first place.</p>
 
@@ -537,7 +555,7 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
 
 <p>Note what the type system did <em>not</em> do: it didn’t silently linearize behind your back, and it didn’t forbid anything useful. If you genuinely want nearest-neighbor sampling on encoded data (which copies pixels and never blends them), that compiles fine, because it’s actually valid. The rule is precise: <em>operations that mix values require values that may be mixed.</em> Everything the checkerboard taught us, encoded in one trait bound.</p>
 
-<p>One line of forum wisdom,  “convert to linear before you blur” , has been repeated for twenty years and forgotten for twenty years. A type checker never forgets. As more vision code gets written by agents trained on those very tutorials, that stubbornness stops being a nicety and becomes the safety rail.</p>
+<p>One line of forum wisdom (“convert to linear before you blur”) has been repeated for twenty years and forgotten for twenty years. A type checker never forgets. As more vision code gets written by agents trained on those very tutorials, that stubbornness stops being a nicety and becomes the safety rail.</p>
 
 <p>So far our bugs lived inside a single image. The final part climbs a whole stack of them: image pyramids and scale-space, where sizes stop matching, coordinates drift by half a pixel per level, and one library packed three numbers into one integer and called it an <code>octave</code>.</p>
 

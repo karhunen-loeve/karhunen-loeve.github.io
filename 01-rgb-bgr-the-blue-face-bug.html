@@ -318,7 +318,7 @@
 
 <p class="kicker">Type-Safe Computer Vision · Part 1 of 3</p>
 <h1>The Blue Face Bug</h1>
-<p class="dek">Your camera says <em>blue-green-red</em>. Your model says <em>red-green-blue</em>. The bytes in between say nothing at all, and that silence has broken more vision pipelines than any algorithm ever did.</p>
+<p class="dek">Your camera says <em>blue-green-red</em>. Your model says <em>red-green-blue</em>. The bytes in between say nothing at all, and no one has to notice.</p>
 <p class="byline">Thomas Stephan · <time datetime="@@DATE1@@">@@HUMAN1@@</time> · <a href="/">Series index</a></p>
 
 <h2>Three bytes walk into an array</h2>
@@ -351,7 +351,7 @@
 <figcaption>Fig. 1. <code>[224, 172, 105]</code>. Interpreted as R-G-B, it is a warm skin tone. Interpreted as B-G-R, the red and blue channels trade places and the same bytes turn ice-blue. The memory is identical. Only the <em>meaning</em> changed.</figcaption>
 </figure>
 
-<p>Nothing in those three bytes says which channel comes first. The order is a <em>convention</em>, and computer vision inherited two of them. Most of the world (PNG, JPEG decoders, browsers, GPUs, PyTorch, your screen) speaks RGB. OpenCV, the most-used vision library on Earth, decided in the early 2000s to store images as BGR, because the Windows bitmaps and cameras of that era did. Both conventions are fine. The bug lives in the handoff.</p>
+<p>Nothing in those three bytes says which channel comes first. The order is a <em>convention</em>, and computer vision has two common ones. Most of the world (PNG, JPEG decoders, browsers, GPUs, PyTorch, your screen) speaks RGB. OpenCV, the most-used vision library on Earth, decided in the early 2000s to store images as BGR, because the Windows bitmaps and cameras of that era did. Both conventions are fine. The bug lives in the handoff.</p>
 
 <h2>The bug you have already written</h2>
 
@@ -361,7 +361,7 @@
 img = cv2.imread(<span class="ty">"portrait.jpg"</span>)
 plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span></code></pre>
 
-<p>And every vision developer gets lucky, because <em>this</em> version of the bug is visible. A blue face is a loud bug. You laugh, you add <code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</code>, you move on.</p>
+<p>And every vision developer gets lucky, because <em>this</em> version of the bug is loud. A blue face is obvious. You laugh, you add <code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</code>, you move on.</p>
 
 <figure>
 <svg viewBox="0 0 680 260" role="img" aria-label="A simple sunset scene drawn twice: once with correct warm colors, once with red and blue channels swapped so the sky turns blue and the sun turns cyan">
@@ -401,9 +401,9 @@ plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span><
 
 <h2>Why this keeps happening</h2>
 
-<p>Search any programming forum for <em>cvtColor BGR2RGB</em> and you will find thousands of hits: matplotlib displays, PIL round-trips, model inference gone quietly wrong, camera SDKs handing over BGRA buffers that got pasted into RGB pipelines. This bug is more than twenty years old, perfectly understood, and still written every day. Why?</p>
+<p>Search any programming forum for <em>cvtColor BGR2RGB</em> and you will find thousands of hits: matplotlib displays, PIL round-trips, model inference gone quietly wrong, camera SDKs handing over BGRA buffers that got pasted into RGB pipelines. This bug is more than twenty years old, perfectly understood, and still written every single day. Why?</p>
 
-<p>Because in almost every vision library, an image is just an array of numbers. A NumPy array of shape <code>(H, W, 3)</code>. A <code>cv::Mat</code> of type <code>CV_8UC3</code>. A bare pointer from a camera SDK. The channel order lives in documentation, in variable names, in the developer's memory, everywhere except in the data itself. The type system, the one tool that checks your assumptions on every single line, has been told nothing. So it checks nothing.</p>
+<p>Because in almost every vision library, an image is just an array of numbers. A NumPy array of shape <code>(H, W, 3)</code>. A <code>cv::Mat</code> of type <code>CV_8UC3</code>. A bare pointer from a camera SDK. The channel order lives in documentation, in variable names, in the developer’s head, everywhere except in the data itself. The type system, the one tool that checks your assumptions on every single line, has been told nothing. It is color-blind, so it checks nothing.</p>
 
 <p>Notice what kind of bug this is. There is no flawed logic anywhere. Every function did exactly what it should. The mistake was that two parts of the program <em>disagreed about what the bytes meant</em>, and had no way to find out. That is not a logic bug. It is a <strong>type bug</strong>, forced to masquerade as a runtime mystery because the types were too weak to catch it.</p>
 
@@ -414,7 +414,7 @@ plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span><
 <pre><code><span class="kw">use</span> fovea::pixel::{<span class="ty">Bgr8</span>, <span class="ty">Rgb8</span>};
 <span class="kw">use</span> fovea::transform::{<span class="ty">ColorSwap</span>, convert_image};
 
-<span class="cmt">// The camera SDK documents its buffer as BGR. So say so, in the type.</span>
+<span class="cmt">// The camera SDK documents its buffer as BGR, expressed in the type.</span>
 <span class="kw">let</span> frame: Image&lt;<span class="ty">Bgr8</span>&gt; = Image::from_raw_bytes(w, h, sdk_buffer)?;
 
 <span class="cmt">// A function that needs RGB *says* it needs RGB:</span>
@@ -423,20 +423,20 @@ plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span><
 detect_marker(&amp;frame);
 <span class="err">// error[E0308]: expected `&amp;Image&lt;Rgb8&gt;`, found `&amp;Image&lt;Bgr8&gt;`</span></code></pre>
 
-<p>The bug that used to hide inside a tensor for weeks now fails <em>before the program exists</em>. And the fix isn't a magic incantation you paste from a forum. It is a conversion with a name, written where the conversion actually happens:</p>
+<p>The bug that used to hide inside a tensor now fails immediately, <em>before the program exists</em>. And the fix isn’t a magic incantation you paste from a forum. It is a conversion with a name, written where the conversion actually happens:</p>
 
 <pre><code><span class="cmt">// Swap R ↔ B, on purpose, visibly, exactly once:</span>
 <span class="kw">let</span> rgb: Image&lt;<span class="ty">Rgb8</span>&gt; = convert_image(&amp;frame, <span class="ty">ColorSwap</span>);
 
 detect_marker(&amp;rgb);   <span class="cmt">// ✓ compiles, and is actually correct</span></code></pre>
 
-<p>Two details matter here. First, <code>Bgr8</code> and <code>Rgb8</code> have <em>identical memory layouts</em>: three bytes, no padding. The wrapper costs nothing at runtime; taking the SDK's buffer is zero-copy. The only thing that changed is that the meaning of the bytes is now written down where the compiler can read it. Second, the conversion is <em>named</em>. Six months from now, <code>ColorSwap</code> in a diff tells you precisely what crossed the boundary and why. A silent reinterpretation never can.</p>
+<p>Two details matter here. First, <code>Bgr8</code> and <code>Rgb8</code> have <em>identical memory layouts</em>: three bytes, no padding. The wrapper costs nothing at runtime; taking the SDK’s buffer is zero-copy. The only thing that changed is that the meaning of the bytes is now written down where the compiler can read it. Second, the conversion is <em>named</em>. Six months from now, <code>ColorSwap</code> in a diff tells you precisely what crossed the boundary and why. A silent reinterpretation never can.</p>
 
 <h2>The stakes are going up</h2>
 
 <p>Computer vision is moving from demos into factories, vehicles, laboratories, and medical devices. At the same time, vision code is increasingly written by coding agents at a speed no human reviewer can match. Both trends point the same way: the class of bug that is <em>invisible in the data and absent from the logs</em> is exactly the class we can least afford. Channel order is the simplest possible example there is: one swap, two conventions. And it has cost the field twenty years of blue faces.</p>
 
-<p>The fix is not more care. Care doesn't scale. The fix is to write the meaning into the type, so that every mismatch (human-written or agent-written) dies at compile time, loudly, with a line number.</p>
+<p>The fix is not more care. Care doesn’t scale. The fix is to write the meaning into the type, so that every mismatch (human-written or agent-written) dies at compile time, loudly, with a line number.</p>
 
 <p>Next up: a bug that is subtler than a blue face, hides in nearly every resize call ever written, and makes your images physically wrong in a way most people have stared at for years without seeing. It involves the number 128, which turns out not to be the middle of anything.</p>
 

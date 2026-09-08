@@ -324,7 +324,7 @@
 
 <h2>Why pyramids exist at all</h2>
 
-<p>Your detector looks for a face 40 pixels wide. The face in the photo is 400 pixels wide. Nobody retrains the detector. You shrink the <em>image</em>: half size, quarter size, eighth size, and run the same detector on every level. Stack the levels and you get the most iconic data structure in computer vision:</p>
+<p>Your detector looks for a face 40 pixels wide. The face in the photo is 400 pixels wide. Nobody retrains the detector. You shrink the <em>image</em>: half size, quarter size, eighth size, and run the same detector on every level. Stack the levels and you get the data structure every vision textbook opens with:</p>
 
 <figure>
 <svg viewBox="0 0 680 300" role="img" aria-label="An image pyramid: four stacked levels of halving size, with the same detector box finding a large object only at the smallest level">
@@ -357,7 +357,7 @@
 
 <h2>Trap 1: the staircase doesn’t come back up</h2>
 
-<p>First trap, and the single most-asked pyramid question on every programming forum: take a 101-pixel-wide image down one level, then bring it back up.</p>
+<p>First trap, and a recurring question on every programming forum: take a 101-pixel-wide image down one level, then bring it back up.</p>
 
 <figure>
 <svg viewBox="0 0 680 250" role="img" aria-label="Downscaling 101 pixels gives 50, doubling back up gives 100, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
@@ -428,7 +428,7 @@
     <rect x="420" y="294" width="80" height="55" fill="url(#tex)" filter="url(#soft1)" stroke="var(--border)"/>
     <rect x="420" y="294" width="80" height="55" fill="none" stroke="var(--border)"/>
     <text x="460" y="396" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">both: Gaussian pyramid</text>
-    <text x="460" y="414" text-anchor="middle" class="svg-muted" font-size="11.5">the “classic” , but only one cell of four</text>
+    <text x="460" y="414" text-anchor="middle" class="svg-muted" font-size="11.5">the “classic”, but only one cell of four</text>
   </g>
 </svg>
 <figcaption>Fig. 3. Blur and shrink are orthogonal. All four combinations exist and all four are used in serious systems. A library with a single <code>buildPyramid()</code> can express exactly one of them, and gives you no word for the other three.</figcaption>
@@ -554,18 +554,16 @@
 
 <p>None of these are logic bugs. The blur was correct, the subsampling was correct, the multiplication by 8 was multiplication by 8. What failed, every time, was <em>unrecorded meaning</em>: an odd parent size the down-step forgot, a σ nobody wrote down, a grid offset that existed only in the implementer’s head. Type bugs, the kind a type system can refuse to compile.</p>
 
-<p>Here is the design <a href="https://crates.io/crates/fovea">fovea</a> is building toward (pyramid support is in active design as this series goes out; the pixel-type machinery from parts 1 and 2 ships today). The principle: <strong>a level is not a bare image; it is an image that knows its own geometry.</strong></p>
+<p>Here is how <a href="https://crates.io/crates/fovea">fovea</a> answers all three, as of v0.4.0 (September 2026). The principle: <strong>a level is not a bare image; it is an image that knows its own geometry.</strong></p>
 
 <pre><code><span class="cmt">// Going back up names its target. Trap 1 cannot compile into existence:</span>
 <span class="kw">let</span> back_up = pyr_up(&amp;level_below, level_above.size())?;  <span class="cmt">// impossible parent size? a value, not a crash</span>
-<span class="cmt">// and a Laplacian pyramid reconstructs from its own remembered sizes:</span>
-<span class="kw">let</span> restored = pyramid.reconstruct();   <span class="cmt">// tested: restored ≈ original, odd sizes included</span>
 
 <span class="cmt">// The two ladders are two different capabilities. Trap 2 gets vocabulary:</span>
 <span class="kw">let</span> sigma = layer.sigma();          <span class="cmt">// blur, in base-image pixels (ScaleLevel)</span>
 <span class="kw">let</span> step  = level.pixel_distance(); <span class="cmt">// sampling stride vs. base image (Decimated)</span>
-<span class="cmt">// A mipmap-style pyramid simply doesn’t offer .sigma(), so asking is a compile error,</span>
-<span class="cmt">// because that number would be a lie. SIFT’s grid is its own type, indexed (octave, layer)</span>
+<span class="cmt">// A mipmap-style pyramid simply doesn't offer .sigma(), so asking is a compile error,</span>
+<span class="cmt">// because that number would be a lie. SIFT's grid is its own type, indexed (octave, layer)</span>
 <span class="cmt">// no more octave·(S+3)+layer arithmetic, no integers with three values packed inside.</span>
 
 <span class="cmt">// And coming down is an exact, named mapping. Trap 3 has one implementation, not N:</span>
