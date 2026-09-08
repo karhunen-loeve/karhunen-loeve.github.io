@@ -401,7 +401,7 @@ plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span><
 
 <h2>Why this keeps happening</h2>
 
-<p>Search any programming forum for <em>cvtColor BGR2RGB</em> and you will find thousands of hits: matplotlib displays, PIL round-trips, model inference gone quietly wrong, camera SDKs handing over BGRA buffers that got pasted into RGB pipelines. This bug is more than twenty years old, perfectly understood, and still written every single day. Why?</p>
+<p>Search any programming forum for <em>cvtColor BGR2RGB</em> and you will find thousands of hits: matplotlib displays, PIL round-trips, model inference gone quietly wrong, camera SDKs handing over BGRA buffers that got pasted into RGB pipelines. This bug is more than twenty years old, perfectly understood, and still written every day. Why?</p>
 
 <p>Because in almost every vision library, an image is just an array of numbers. A NumPy array of shape <code>(H, W, 3)</code>. A <code>cv::Mat</code> of type <code>CV_8UC3</code>. A bare pointer from a camera SDK. The channel order lives in documentation, in variable names, in the developer’s head, everywhere except in the data itself. The type system, the one tool that checks your assumptions on every single line, has been told nothing. It is color-blind, so it checks nothing.</p>
 
