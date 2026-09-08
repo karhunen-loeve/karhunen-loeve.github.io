@@ -534,18 +534,18 @@
 <figure>
 <div class="pair">
   <div>
-    <img src="images/gamma-thumb_naive.png" width="312" height="205"
-         alt="A backlit autumn scene reduced to thumbnail size by averaging the stored sRGB bytes. The sun's glow is smaller and the foliage against the sky reads darker and flatter.">
-    <p class="lbl">averaged as bytes <span class="num">— mean luminance 0.483</span></p>
+    <img src="images/gamma-thumb_naive.png" width="320" height="160"
+         alt="The Milky Way reduced to a thumbnail by averaging the stored bytes. The band of the galaxy survives, but most of the individual stars are gone.">
+    <p class="lbl">averaged as bytes</p>
   </div>
   <div>
-    <img src="images/gamma-thumb_linear.png" width="312" height="205"
-         alt="The same crop reduced the same way, but averaged in linear light. The sun's glow keeps its extent and the sunlit foliage stays bright.">
-    <p class="lbl">averaged in light <span class="num">— mean luminance 0.500</span></p>
+    <img src="images/gamma-thumb_linear.png" width="320" height="160"
+         alt="The same reduction performed in linear light. The star field is still there, and the galaxy reads brighter.">
+    <p class="lbl">averaged in light</p>
   </div>
 </div>
-<figcaption>Fig. 5. One photo, one crop, three halving steps, the same 5-tap kernel both times. The only difference is whether the sRGB curve was decoded before averaging. The left thumbnail is <strong>3.4&nbsp;%</strong> darker in mean linear luminance and its worst single channel is off by <strong>51</strong> codes out of 255. The error compounds with every step: 2.5&nbsp;% after two halvings, 3.4&nbsp;% after three, 4.2&nbsp;% after four. It is largest in the bare branches against bright sky and absent in the flat grass, because a uniform region averages to itself either way.
-<span class="credit">Source photo: <a href="https://commons.wikimedia.org/wiki/File:Autumn_afternoon_in_Wittelsbacher_Park,_Augsburg_(2015).jpg">Autumn afternoon in Wittelsbacher Park, Augsburg</a> by Paul Colin Hennig, <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>; both thumbnails are derivative works under the same licence. Generated with <a href="https://github.com/karhunen-loeve/fovea-examples">fovea-examples</a>, <code>gamma_thumbnails</code>.</span></figcaption>
+<figcaption>Fig. 5. The same photograph shrunk to a thumbnail twice, same filter, same number of steps. The only difference is whether the bytes were decoded to light before averaging. The stars survive on one side only.
+<span class="credit">Photo: <a href="https://commons.wikimedia.org/wiki/File:ESO_-_Milky_Way.jpg">ESO/S. Brunier</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Both thumbnails produced with <code>gamma_thumbnails</code> in <a href="https://github.com/karhunen-loeve/fovea-examples">fovea-examples</a>, which prints the measured difference.</span></figcaption>
 </figure>
 
 <p>This is why gamma-ignorant thumbnails look slightly lifeless, why blurred highlights grow dark halos, and why <a href="https://www.ericbrasseur.org/gamma.html">Eric Brasseur’s gamma test image</a> (a fine black-and-white pattern whose structure survives a correct downscale) collapses into flat gray in essentially every scaler he tried. The internet has re-discovered this bug on a loop for two decades: <a href="https://github.com/python-pillow/Pillow/issues/1604">Pillow</a> closed the request as out of scope, <a href="https://github.com/DarthSim/imgproxy/issues/145">imgproxy</a> and <a href="https://github.com/darktable-org/darktable/issues/13335">darktable</a> carry the same report, and it still ships in production, everywhere, today.</p>
@@ -564,7 +564,7 @@
       <p class="lbl">averaged in light</p>
     </div>
   </div>
-  <p class="readout" id="tryit-readout">Pick a photo with fine high-contrast detail — backlit foliage, a night skyline, white text on dark. Flat, mid-tone images have little to mix and will barely differ.</p>
+  <p class="readout" id="tryit-readout">Small bright things on a dark ground show it best: a night sky, city lights, sparkle on water. Flat, mid-tone photos have little to mix and will barely differ.</p>
 </section>
 
 <p class="pull">Nobody’s math was wrong. The average was computed perfectly, on numbers that were never averages-compatible in the first place.</p>
