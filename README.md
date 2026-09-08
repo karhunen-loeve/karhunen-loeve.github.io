@@ -10,9 +10,39 @@ SVG, no external assets) and can be opened straight from disk to proofread.
 | `01-rgb-bgr-the-blue-face-bug.html` | Part 1 — The Blue Face Bug |
 | `02-gamma-blind-interpolation.html` | Part 2 — 128 Is Not the Middle |
 | `03-pyramids-and-scale-space.html` | Part 3 — Climbing the Pyramid |
+| `tools/` | Browser tools: computer vision running client-side on WebAssembly |
 | `feed.xml` | Atom feed |
 | `images/` | The only external assets — currently just the portrait on `index.html` |
 | `.nojekyll` | Tells GitHub Pages to serve the files verbatim |
+
+## Browser tools
+
+`tools/` holds pages that run `fovea` in the reader's browser. Every page in
+the site carries a left rail linking to them, themed from that page's own
+palette through its `--fv-*` variables.
+
+**The rail is generated too.** In every page it sits between
+`browser-tools rail: begin` and `browser-tools rail: end` markers, in both the
+`<style>` block and the body. Do not hand-edit inside those markers: a script
+outside this repo rewrites all thirteen pages from one template, and an edit
+there is lost on the next run. Changing a rail entry means changing that
+template. Only the `--fv-*` values at the top of each block are per page, and
+they are generated as well.
+
+`tools/fovea-wasm.js` is **generated**, not written: it is the compiled
+WebAssembly module, base64-encoded into a classic script. Do not edit it. It
+is rebuilt from the `fovea` sources by a script kept outside this repo.
+
+Two decisions are worth knowing before touching those pages:
+
+- **The module is inlined, not fetched.** A `.wasm` cannot be fetched over
+  `file://`, and neither can an ES module script, so both would have broken
+  the open-from-disk property above. Base64 in a classic script keeps it.
+  The cost is a third more bytes, which gzip mostly gives back.
+- **Sample images are generated in the page.** A `file://` page cannot read
+  pixels back out of a canvas it drew a `file://` image into: the origin is
+  opaque, so the canvas is tainted. The procedural samples avoid that
+  entirely; the one sample that is a real photograph says so when it fails.
 
 ## Publishing
 
