@@ -483,7 +483,7 @@
 <figcaption>Fig. 4. SIFT’s scale space is a <em>grid</em>, not a chain. Same resolution across each row, same blur ratio down each column. Most libraries flatten this into one array and make you compute <code>octave·(S+3)+layer</code> by hand, an off-by-one-octave bug generator with decades of forum history.</figcaption>
 </figure>
 
-<p>And how does the most-used library on Earth report which cell of that grid a keypoint came from? It packs the octave, the layer, <em>and</em> a sub-scale fraction into a single 32-bit integer. Users see <code>keypoint.octave == 10420482</code>, file a bug, and are pointed to an unexported internal function whose decode ritual involves masking the low byte and manually sign-extending it, because octave −1 is valid. That bug report has been open, as “works as intended,” for a decade.</p>
+<p>And how does OpenCV report which cell of that grid a keypoint came from? It packs the octave, the layer, <em>and</em> a sub-scale fraction into a single 32-bit integer. Users see <code>keypoint.octave == 10420482</code>, file a bug, and are pointed to an unexported internal function whose decode ritual involves masking the low byte and manually sign-extending it, because octave −1 is valid. <a href="https://github.com/opencv/opencv/issues/4554">The report</a> has been open since 2015; the packing was reclassified from bug to feature and kept for backward compatibility. One commenter asked the question this whole series is about: “How should a typical user know that?”</p>
 
 <h2>Trap 3: the way back down is off by half a pixel</h2>
 
