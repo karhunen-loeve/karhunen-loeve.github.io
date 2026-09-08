@@ -32,6 +32,12 @@
     --bad:         #ff8d8d;
     --good:        #6ee7a8;
     --code-bg:     #0e181c;
+    /* The generated tool rail maps its own variables onto these two names.
+       They are aliases of --surface and --muted above, and they have to
+       exist: var() without a fallback on an undefined property makes the
+       whole declaration invalid, which left the rail transparent. */
+    --panel:       #121e23;
+    --ink-3:       #82a49c;
     --accent-2:    #ffc166;
     --fill-soft:   #16262b;
     /* the texture layers, same three as the landing page */
