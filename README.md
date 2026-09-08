@@ -24,7 +24,7 @@ palette through its `--fv-*` variables.
 **The rail is generated too.** In every page it sits between
 `browser-tools rail: begin` and `browser-tools rail: end` markers, in both the
 `<style>` block and the body. Do not hand-edit inside those markers: a script
-outside this repo rewrites all thirteen pages from one template, and an edit
+outside this repo rewrites every page from one template, and an edit
 there is lost on the next run. Changing a rail entry means changing that
 template. Only the `--fv-*` values at the top of each block are per page, and
 they are generated as well.
