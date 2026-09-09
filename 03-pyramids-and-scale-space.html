@@ -667,18 +667,18 @@
 
 <p>Here is how <a href="https://crates.io/crates/fovea">fovea</a> answers all three, as of v0.4.0 (September 2026). The principle: <strong>a level is not a bare image; it is an image that knows its own geometry.</strong></p>
 
-<p><strong>Trap 1, the staircase that would not come back up.</strong> The information that got lost was the parent&rsquo;s size, so the up-step asks for it. There is no overload that guesses:</p>
+<p><strong>Trap 1, the staircase that would not come back up.</strong> The levels live in a <code>Pyramid&lt;L&gt;</code>, finest first, which is the thing that remembers the sizes. The up-step asks for its target, and there is no overload that guesses:</p>
 
-<pre><code><span class="kw">let</span> base:  <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = load(&quot;photo.png&quot;)?; <span class="cmt">// 101 × 68, an ordinary odd size</span>
-<span class="kw">let</span> small: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = pyr_down(&amp;base);    <span class="cmt">// 51 × 34</span>
+<pre><code><span class="kw">let</span> base: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = load(&quot;photo.png&quot;)?; <span class="cmt">// 101 × 68, an ordinary odd size</span>
+<span class="kw">let</span> pyr = <span class="ty">Gaussian</span>.build(&amp;base, 3);        <span class="cmt">// 101×68, 51×34, 26×17</span>
 
-<span class="cmt">// Now go back up. The size 101 is not in `small` any more:</span>
-<span class="kw">let</span> back_up = pyr_up(&amp;small);
+<span class="cmt">// Go back up one level. The number 101 is not in level 1 any more:</span>
+<span class="kw">let</span> back_up = pyr_up(pyr.level(1));
 <span class="err">// error[E0061]: this function takes 2 arguments but 1 argument was supplied</span>
 <span class="err">//   = note: a 51-wide level could have come from 101 or from 102</span>
 
-<span class="cmt">// Name the target and the round trip is exact, odd sizes included:</span>
-<span class="kw">let</span> back_up: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = pyr_up(&amp;small, base.size())?; <span class="cmt">// 101 × 68</span></code></pre>
+<span class="cmt">// The pyramid does know, so ask it. Odd sizes round-trip exactly:</span>
+<span class="kw">let</span> back_up: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = pyr_up(pyr.level(1), pyr.level(0).size())?;</code></pre>
 
 <p><strong>Trap 2, the two ladders.</strong> Blur and resolution are two capabilities, not one number, and a function asks for the one it actually uses. Asking a level for what it does not have is a compile error, not a plausible zero:</p>
 
