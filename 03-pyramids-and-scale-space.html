@@ -703,11 +703,14 @@ level.sigma();          <span class="cmt">// the blur ladder, which a mipmap wou
 
 <p><strong>Trap 3, the way back down.</strong> The best fix is not a safer multiplication, it is not having to multiply. A detector that runs on a level reports in the base frame:</p>
 
-<pre><code><span class="kw">let</span> corners = fast_in_level(&amp;level, params, &amp;<span class="ty">Skip</span>);
+<pre><code><span class="cmt">// Detection on a level already reports base-frame positions: nothing to multiply.</span>
+<span class="kw">let</span> corners = fast_in_level(&amp;level, params, &amp;<span class="ty">Skip</span>);
 <span class="cmt">// found on a 32×32 level, reported in 64×64 base coordinates</span>
 
-<span class="cmt">// And when you do lift a point yourself, it is one named method:</span>
-<span class="kw">let</span> p_full = level.to_base(p_local); <span class="cmt">// origin_offset + pixel_distance · p_local</span>
+<span class="cmt">// A point you lift yourself goes through one named method, in both directions:</span>
+<span class="kw">let</span> peak    = <span class="ty">CoordinateF64</span>::new(5.0, 3.0); <span class="cmt">// a sub-pixel peak, in level coordinates</span>
+<span class="kw">let</span> in_base = level.to_base(peak);          <span class="cmt">// (10.0, 6.0) = origin_offset + pixel_distance · peak</span>
+<span class="kw">let</span> back    = level.to_local(in_base);      <span class="cmt">// (5.0, 3.0) again: the exact inverse</span>
 <span class="cmt">// The half-pixel term is part of the contract of how this level was built,</span>
 <span class="cmt">// not something you had to be at the campfire for.</span></code></pre>
 
