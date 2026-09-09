@@ -403,7 +403,7 @@
 <figcaption>Fig. 2. Half of 101 is not a whole number. Whichever way the library rounds, the down-step forgets whether its parent was odd, so the up-step reconstructs the wrong size. Every tutorial demo uses 512×512 and works; your first real photo doesn’t.</figcaption>
 </figure>
 
-<p>Why does anyone go back <em>up</em>? Because the most useful pyramids are built from differences: subtract the blurry upsampled level from the sharper one above it and you isolate the detail that lives at that scale, the basis of seamless image blending, HDR fusion, and half of classical vision. And subtraction needs both images to be <em>the same size</em>. On any image whose dimensions aren’t a power of two, the naive round trip breaks, loudly if you’re lucky, silently if you’re not. scikit-image shipped a broken version of exactly this construction for years: its <a href="https://github.com/scikit-image/scikit-image/issues/7921"><code>pyramid_laplacian</code></a> cannot rebuild the original image, which its maintainers confirmed and which was still unfixed in September 2026. Why did nobody notice? A core developer answered that in one sentence: &ldquo;somewhat bizarrely, we don&rsquo;t have a reconstruction test in the test suite.&rdquo;</p>
+<p>Why does anyone go back <em>up</em>? Because the most useful pyramids are built from differences: subtract the blurry upsampled level from the sharper one above it and you isolate the detail that lives at that scale, the basis of seamless image blending, HDR fusion, and half of classical vision. And subtraction needs both images to be <em>the same size</em>. Let one odd number appear anywhere down the chain and the naive round trip breaks, loudly if you’re lucky, silently if you’re not. scikit-image shipped a broken version of exactly this construction for years: its <a href="https://github.com/scikit-image/scikit-image/issues/7921"><code>pyramid_laplacian</code></a> cannot rebuild the original image, which its maintainers confirmed and which was still unfixed in September 2026. Why did nobody notice? A core developer answered that in one sentence: &ldquo;somewhat bizarrely, we don&rsquo;t have a reconstruction test in the test suite.&rdquo;</p>
 
 <p>The root cause is almost embarrassing: <code>shrink()</code> and <code>grow()</code> are two independent, stateless functions. Neither remembers the parent’s size. The information “101 was odd” falls into the gap between two function calls.</p>
 
@@ -527,7 +527,7 @@
 
 <h2>Trap 3: the way back down is off by half a pixel</h2>
 
-<p>You found your object at level 3. Wonderful. Now: <em>where is it in the original image?</em> Everyone writes the same line: <code>x_full = x_level * 8</code>. And everyone ships a subtle lie, because that formula assumes the two pixel grids are aligned at their corners, and depending on how the library shrinks, they usually aren’t:</p>
+<p>You found your object at level 3. Wonderful. Now: <em>where is it in the original image?</em> Everyone writes the same line: <code>x_full = x_level * 8</code>. And everyone ships a subtle lie, because that formula assumes a coarse pixel sits exactly where a full-resolution pixel sits, and depending on how the library shrinks, it usually doesn’t:</p>
 
 <figure>
 <svg viewBox="0 0 680 530" role="img" aria-label="A four-level image pyramid drawn with pixel grids. The object is detected on level 3, the smallest. Mapping that detection back to level 0 by multiplying by eight lands three and a half pixels short of the object; adding the half-pixel term that the averaging introduced lands on it.">
@@ -665,7 +665,7 @@
 
 <p>None of these are logic bugs. The blur was correct, the subsampling was correct, the multiplication by 8 was multiplication by 8. What failed, every time, was <em>unrecorded meaning</em>: an odd parent size the down-step forgot, a σ nobody wrote down, a grid offset that existed only in the implementer’s head. Type bugs, the kind a type system can refuse to compile.</p>
 
-<p>Here is how <a href="https://crates.io/crates/fovea">fovea</a> answers all three, as of v0.4.0 (September 2026). The principle: <strong>a level is not a bare image; it is an image that knows its own geometry.</strong></p>
+<p>Here is how <a href="https://crates.io/crates/fovea">fovea</a> answers all three, as of v0.4.0 (September 2026). The principle: <strong>a level&rsquo;s geometry is a value it carries, not a convention you are expected to remember.</strong></p>
 
 <p><strong>Trap 1, the staircase that would not come back up.</strong> The levels live in a <code>Pyramid&lt;L&gt;</code>, finest first, which is the thing that remembers the sizes. The up-step asks for its target, and there is no overload that guesses:</p>
 
