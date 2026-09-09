@@ -787,6 +787,66 @@
 <figcaption>Fig. 6. What one pixel of level 1 actually is. If the level kept every second sample, it is one pixel of level 0 and doubling its index hits that pixel. If it averaged a 2×2 block, it is four pixels, and four pixels have their middle at a corner, half a pixel from any of them. That is the offset, once per level.</figcaption>
 </figure>
 
+<figure>
+<svg viewBox="0 0 680 362" role="img" aria-label="Two ways to produce one coarse sample from a row of fine pixels. Above, a five-tap Gaussian: the taps are symmetric about a middle tap, so the coarse sample sits exactly on fine pixel 4. Below, an average of two samples: there is no middle tap, so the coarse sample sits between fine pixels 4 and 5, half a pixel off the grid.">
+  <text x="60" y="26" class="svg-ink" font-size="12.5" font-weight="600">A · 5-tap Gaussian, then keep every second sample</text>
+  <text x="60" y="44" class="svg-muted" font-size="11.5">odd number of taps, so one of them is the middle one</text>
+    <rect x="170" y="113" width="30" height="7" fill="var(--accent)" opacity="0.75"/>
+    <rect x="220" y="93" width="30" height="27" fill="var(--accent)" opacity="0.75"/>
+    <rect x="270" y="80" width="30" height="40" fill="var(--accent)" opacity="0.75"/>
+    <rect x="320" y="93" width="30" height="27" fill="var(--accent)" opacity="0.75"/>
+    <rect x="370" y="113" width="30" height="7" fill="var(--accent)" opacity="0.75"/>
+    <rect x="60" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="110" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="160" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="210" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="260" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="310" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="360" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="410" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="460" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <circle cx="85" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="135" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="185" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="235" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="285" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="335" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="385" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="435" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="485" cy="135" r="2" fill="var(--muted)"/>
+    <path d="M279 162 L291 162 L285 152 z" fill="var(--accent)"/>
+    <text x="285" y="178" text-anchor="middle" class="mono svg-ink" font-size="11.5">sits on fine 4</text>
+  <text x="530" y="139" class="svg-ink2" font-size="12">x · 2 exact ✓</text>
+
+  <text x="60" y="222" class="svg-ink" font-size="12.5" font-weight="600">B · average two samples, then keep every second</text>
+  <text x="60" y="240" class="svg-muted" font-size="11.5">even number of taps, so there is no middle one</text>
+    <rect x="270" y="250" width="30" height="40" fill="var(--accent-2)" opacity="0.75"/>
+    <rect x="320" y="250" width="30" height="40" fill="var(--accent-2)" opacity="0.75"/>
+    <rect x="60" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="110" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="160" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="210" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="260" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="310" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="360" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="410" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="460" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <circle cx="85" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="135" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="185" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="235" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="285" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="335" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="385" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="435" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="485" cy="305" r="2" fill="var(--muted)"/>
+    <path d="M304 332 L316 332 L310 322 z" fill="var(--accent-2)"/>
+    <text x="310" y="348" text-anchor="middle" class="mono svg-ink" font-size="11.5">sits between 4 and 5</text>
+  <text x="530" y="309" class="svg-ink2" font-size="12">x · 2 + 0.5 ✗</text>
+</svg>
+<figcaption>Fig. 7. Which samples a level is built from decides where its pixels sit. Five taps have a middle tap and the coarse sample inherits its position, so the grids stay aligned and <code>x·2</code> is exact. Two taps have no middle, so the sample lands on the edge between them. Odd footprints keep a pyramid on the grid; even ones shift it half a pixel, once per level.</figcaption>
+</figure>
+
 <p>If “half a pixel” sounds precious, consider that whole framework ecosystems fought a multi-year war over exactly this: the infamous <code>align_corners</code> flag, whose default was <a href="https://jricheimer.github.io/tensorflow/2019/02/11/resize-confusion/">wrong in TensorFlow 1</a> for years. The flag still means different things in different frameworks: with <code>align_corners=False</code>, coarse pixel <em>k</em> sits at <em>2k</em> in TensorFlow 1 and at <em>2k</em>&nbsp;+&nbsp;0.5 in PyTorch. Same name, same value, half a pixel apart. Sub-pixel keypoints, optical flow, stereo: the entire point of these algorithms is precision <em>below</em> one pixel. A convention mismatch eats the whole error budget before your algorithm even starts.</p>
 
 <p class="pull">Three traps, one pattern: the pyramid’s geometry (parent sizes, blur levels, grid offsets) lives in nobody’s data structure. It lives in comments, in conventions, and in rules chanted around a campfire on a foggy night, whose songs have faded by morning.</p>
