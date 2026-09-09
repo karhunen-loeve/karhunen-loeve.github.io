@@ -22,19 +22,45 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+# $PSScriptRoot, not $MyInvocation.MyCommand.Path. The latter is empty when the
+# script is started with `powershell -Command ./stamp-dates.ps1`, which is what
+# a scheduled run or a double-click on Windows PowerShell does, and the failure
+# is a null-reference somewhere further down rather than anything that names the
+# cause. $PSScriptRoot is filled in for every invocation of a script file.
+$here = $PSScriptRoot
 
 $map = @{}
 $i = 1
 foreach ($d in @($Date1, $Date2, $Date3)) {
-  # RFC 3339 / ISO 8601 in UTC — required by Atom and by og:article:published_time
-  $map["@@DATE$i@@"]  = $d.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-  # human-readable, for the visible byline
-  $map["@@HUMAN$i@@"] = $d.ToString('d MMMM yyyy', [cultureinfo]::InvariantCulture)
+  # One calendar day, written twice: RFC 3339 in UTC because Atom and
+  # og:article:published_time want that, and in prose because the byline does.
+  #
+  # Both readings have to name the same day. Converting a local midnight to UTC
+  # does not: anywhere east of Greenwich it lands in the previous day, so the
+  # feed said the 14th while the byline said the 15th. Noon is far enough from
+  # both edges of the day that every reader from UTC-11 to UTC+11 is told the
+  # date that is printed. Any time of day passed on the command line is
+  # dropped, since a publication date is a day and not a moment.
+  $day = $d.Date
+  $map["@@DATE$i@@"]  = $day.ToString('yyyy-MM-dd') + 'T12:00:00Z'
+  $map["@@HUMAN$i@@"] = $day.ToString('d MMMM yyyy', [cultureinfo]::InvariantCulture)
   $i++
 }
 
-$targets = Get-ChildItem -LiteralPath $here -Include '0*.html', 'feed.xml' -File
+# Wildcards in -Path, not -LiteralPath with -Include. The second pair looks
+# equivalent and is not: Windows PowerShell 5.1 ignores the -Include filter here
+# and hands back every file in the directory, so the run rewrote this script's
+# own documentation, where the placeholders are named as examples. Anything else
+# in the folder holding a string that looks like a placeholder would have gone
+# the same way. pwsh 7 filters correctly, which is why it never showed up
+# interactively. A missing target throws, which is the outcome we want: better a
+# stopped run than a published file nobody stamped.
+$targets = Get-ChildItem -File -Path @(
+  Join-Path $here '0*.html'
+  Join-Path $here 'feed.xml'
+  Join-Path $here 'sitemap.xml'
+)
 $touched = 0
 
 foreach ($f in $targets) {
