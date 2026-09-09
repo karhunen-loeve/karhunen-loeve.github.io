@@ -473,48 +473,59 @@
 <p>Follow the checkerboard through both pipelines, with the actual numbers:</p>
 
 <figure>
-<svg viewBox="0 0 680 300" role="img" aria-label="The 2 by 2 matrix 0,255,255,0 averaged two ways: directly on encoded bytes yielding 128, and by decoding to linear light values 0.0 and 1.0, averaging to 0.5, then re-encoding to 188">
-  <text x="120" y="34" text-anchor="middle" class="svg-ink" font-size="14" font-weight="600">stored bytes</text>
-  <g class="mono" font-size="15" text-anchor="middle">
-    <rect x="60" y="50" width="56" height="42" fill="none" stroke="var(--hairline)"/>
-    <rect x="124" y="50" width="56" height="42" fill="none" stroke="var(--hairline)"/>
-    <rect x="60" y="100" width="56" height="42" fill="none" stroke="var(--hairline)"/>
-    <rect x="124" y="100" width="56" height="42" fill="none" stroke="var(--hairline)"/>
-    <text x="88"  y="76" class="svg-ink">0</text>
-    <text x="152" y="76" class="svg-ink">255</text>
-    <text x="88"  y="126" class="svg-ink">255</text>
-    <text x="152" y="126" class="svg-ink">0</text>
-  </g>
-  <!-- naive path -->
-  <path d="M196 96 L560 66" stroke="var(--bad)" stroke-width="1.5" fill="none" marker-end="url(#arrR)"/>
+<svg viewBox="0 0 680 300" role="img" aria-label="The 2 by 2 matrix 0,255,255,0 averaged two ways. Along the top, averaging the stored bytes directly gives 128. Below, the same matrix is decoded to the linear values 0.0 and 1.0, averaged to 0.5, and re-encoded to 188.">
   <defs>
     <marker id="arrR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--bad)"/></marker>
     <marker id="arrG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--good)"/></marker>
   </defs>
-  <text x="380" y="52" text-anchor="middle" class="mono svg-ink2" font-size="12.5">mean(0, 255, 255, 0) = 127.5</text>
-  <rect x="574" y="42" width="52" height="42" rx="6" fill="rgb(128,128,128)"/>
-  <text x="600" y="102" text-anchor="middle" class="mono svg-ink" font-size="13">128 ✗</text>
-  <!-- correct path -->
-  <path d="M196 130 L240 190" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
-  <text x="130" y="176" class="svg-ink2" font-size="12">decode to light</text>
-  <g class="mono" font-size="13" text-anchor="middle">
-    <rect x="230" y="196" width="52" height="34" fill="none" stroke="var(--hairline)"/>
-    <rect x="288" y="196" width="52" height="34" fill="none" stroke="var(--hairline)"/>
-    <rect x="230" y="236" width="52" height="34" fill="none" stroke="var(--hairline)"/>
-    <rect x="288" y="236" width="52" height="34" fill="none" stroke="var(--hairline)"/>
-    <text x="256" y="218" class="svg-ink">0.0</text>
-    <text x="314" y="218" class="svg-ink">1.0</text>
-    <text x="256" y="258" class="svg-ink">1.0</text>
-    <text x="314" y="258" class="svg-ink">0.0</text>
+
+  <!-- the source: 2x2 stored bytes, centre line y=96 -->
+  <text x="120" y="34" text-anchor="middle" class="svg-ink" font-size="14" font-weight="600">stored bytes</text>
+  <g class="mono" font-size="15" text-anchor="middle">
+    <rect x="60"  y="50"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="124" y="50"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="60"  y="92"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="124" y="92"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <text x="88"  y="76"  class="svg-ink">0</text>
+    <text x="152" y="76"  class="svg-ink">255</text>
+    <text x="88"  y="118" class="svg-ink">255</text>
+    <text x="152" y="118" class="svg-ink">0</text>
   </g>
-  <path d="M352 232 L436 232" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
-  <text x="394" y="222" text-anchor="middle" class="mono svg-ink2" font-size="12.5">mean = 0.5</text>
-  <path d="M470 232 L556 232" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
-  <text x="513" y="222" text-anchor="middle" class="svg-ink2" font-size="12">re-encode</text>
-  <rect x="574" y="210" width="52" height="42" rx="6" fill="rgb(188,188,188)"/>
-  <text x="600" y="270" text-anchor="middle" class="mono svg-ink" font-size="13">188 ✓</text>
+
+  <!-- naive path: straight across, on the source's own centre line -->
+  <text x="380" y="82" text-anchor="middle" class="mono svg-ink2" font-size="12.5">mean(0, 255, 255, 0) = 127.5</text>
+  <path d="M196 92 L560 92" stroke="var(--bad)" stroke-width="1.5" fill="none" marker-end="url(#arrR)"/>
+  <rect x="574" y="71" width="52" height="42" rx="6" fill="rgb(128,128,128)"/>
+  <text x="600" y="131" text-anchor="middle" class="mono svg-ink" font-size="13">128 ✗</text>
+
+  <!-- the branch: straight down out of the source -->
+  <path d="M120 138 L120 188" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
+  <text x="132" y="172" class="svg-ink2" font-size="12">decode to light</text>
+
+  <!-- the same matrix in linear light, directly below the source -->
+  <g class="mono" font-size="14" text-anchor="middle">
+    <rect x="60"  y="196" width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="124" y="196" width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="60"  y="238" width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="124" y="238" width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <text x="88"  y="222" class="svg-ink">0.0</text>
+    <text x="152" y="222" class="svg-ink">1.0</text>
+    <text x="88"  y="264" class="svg-ink">1.0</text>
+    <text x="152" y="264" class="svg-ink">0.0</text>
+  </g>
+
+  <!-- linear path: one straight line through mean and re-encode, y=238 -->
+  <text x="256" y="228" text-anchor="middle" class="mono svg-ink2" font-size="12.5">mean = 0.5</text>
+  <path d="M196 238 L316 238" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
+  <rect x="330" y="217" width="52" height="42" rx="6" fill="rgb(188,188,188)"/>
+  <text x="356" y="277" text-anchor="middle" class="mono svg-ink2" font-size="13">0.5</text>
+
+  <text x="479" y="228" text-anchor="middle" class="svg-ink2" font-size="12">re-encode</text>
+  <path d="M398 238 L560 238" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
+  <rect x="574" y="217" width="52" height="42" rx="6" fill="rgb(188,188,188)"/>
+  <text x="600" y="277" text-anchor="middle" class="mono svg-ink" font-size="13">188 ✓</text>
 </svg>
-<figcaption>Fig. 3. Same input, two pipelines. The red path does arithmetic on the <em>code</em>; the green path decodes to light, averages, and re-encodes. Three extra steps, one visibly different answer.</figcaption>
+<figcaption>Fig. 3. Same input, two pipelines. The red path does arithmetic on the <em>code</em>; the green path decodes to light, averages, and re-encodes. The 0.5 swatch and the 188 swatch are the same gray, because re-encoding changes the number and not the light. Three extra steps, one visibly different answer.</figcaption>
 </figure>
 
 <h2>This is every resize, every blur, every blend</h2>
