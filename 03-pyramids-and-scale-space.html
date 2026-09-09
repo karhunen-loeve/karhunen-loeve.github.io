@@ -530,60 +530,58 @@
 <p>You found your object at level 3. Wonderful. Now: <em>where is it in the original image?</em> Everyone writes the same line: <code>x_full = x_level * 8</code>. And everyone ships a subtle lie, because that formula assumes the two pixel grids are aligned at their corners, and depending on how the library shrinks, they usually aren’t:</p>
 
 <figure>
-<svg viewBox="0 0 680 300" role="img" aria-label="A fine pixel grid with dots at pixel centers, and a coarse grid overlaid. Depending on the downsampling convention, coarse pixel centers sit either exactly on even fine centers or half a pixel off. An arrow marks the half-pixel offset.">
-  <!-- fine grid: 12 cells of 44px starting x=60,y=70; show one row band -->
+<svg viewBox="0 0 680 530" role="img" aria-label="A four-level image pyramid drawn with pixel grids. The object is detected on level 3, the smallest. Mapping that detection back to level 0 by multiplying by eight lands three and a half pixels short of the object; adding the half-pixel term that the averaging introduced lands on it.">
+  <defs>
+    <pattern id="px2" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
+    </pattern>
+    <marker id="mapR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--bad)"/></marker>
+    <marker id="mapG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--good)"/></marker>
+  </defs>
   <g>
-    <text x="60" y="52" class="svg-ink" font-size="13" font-weight="600">full-resolution grid</text>
-    <g stroke="var(--hairline)">
-      <rect x="60" y="66" width="528" height="44" fill="none"/>
-      <line x1="104" y1="66" x2="104" y2="110"/><line x1="148" y1="66" x2="148" y2="110"/>
-      <line x1="192" y1="66" x2="192" y2="110"/><line x1="236" y1="66" x2="236" y2="110"/>
-      <line x1="280" y1="66" x2="280" y2="110"/><line x1="324" y1="66" x2="324" y2="110"/>
-      <line x1="368" y1="66" x2="368" y2="110"/><line x1="412" y1="66" x2="412" y2="110"/>
-      <line x1="456" y1="66" x2="456" y2="110"/><line x1="500" y1="66" x2="500" y2="110"/>
-      <line x1="544" y1="66" x2="544" y2="110"/>
-    </g>
-    <g fill="var(--muted)">
-      <circle cx="82"  cy="88" r="3"/><circle cx="126" cy="88" r="3"/><circle cx="170" cy="88" r="3"/>
-      <circle cx="214" cy="88" r="3"/><circle cx="258" cy="88" r="3"/><circle cx="302" cy="88" r="3"/>
-      <circle cx="346" cy="88" r="3"/><circle cx="390" cy="88" r="3"/><circle cx="434" cy="88" r="3"/>
-      <circle cx="478" cy="88" r="3"/><circle cx="522" cy="88" r="3"/><circle cx="566" cy="88" r="3"/>
-    </g>
+    <rect x="60" y="10" width="40" height="30" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="85" cy="25" r="3.5" fill="var(--accent)" opacity="0.8"/>
+    <rect x="60" y="10" width="40" height="30" fill="url(#px2)" stroke="var(--border)"/>
   </g>
-  <!-- convention A -->
   <g>
-    <text x="60" y="152" class="svg-ink" font-size="13" font-weight="600">half-res grid, convention A: keep every 2nd sample</text>
-    <rect x="60" y="162" width="528" height="44" fill="none" stroke="var(--hairline)"/>
-    <g stroke="var(--hairline)">
-      <line x1="148" y1="162" x2="148" y2="206"/><line x1="236" y1="162" x2="236" y2="206"/>
-      <line x1="324" y1="162" x2="324" y2="206"/><line x1="412" y1="162" x2="412" y2="206"/>
-      <line x1="500" y1="162" x2="500" y2="206"/>
-    </g>
-    <g fill="var(--accent)">
-      <circle cx="82"  cy="184" r="4"/><circle cx="170" cy="184" r="4"/><circle cx="258" cy="184" r="4"/>
-      <circle cx="346" cy="184" r="4"/><circle cx="434" cy="184" r="4"/><circle cx="522" cy="184" r="4"/>
-    </g>
-    <text x="598" y="189" class="mono svg-ink2" font-size="12">x·2 ✓</text>
+    <rect x="60" y="50" width="80" height="60" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="110" cy="80" r="6.5" fill="var(--accent)" opacity="0.8"/>
+    <rect x="60" y="50" width="80" height="60" fill="url(#px2)" stroke="var(--border)"/>
   </g>
-  <!-- convention B -->
   <g>
-    <text x="60" y="248" class="svg-ink" font-size="13" font-weight="600">half-res grid, convention B: average 2×2 blocks</text>
-    <rect x="60" y="258" width="528" height="44" fill="none" stroke="var(--hairline)"/>
-    <g stroke="var(--hairline)">
-      <line x1="148" y1="258" x2="148" y2="302"/><line x1="236" y1="258" x2="236" y2="302"/>
-      <line x1="324" y1="258" x2="324" y2="302"/><line x1="412" y1="258" x2="412" y2="302"/>
-      <line x1="500" y1="258" x2="500" y2="302"/>
-    </g>
-    <g fill="var(--accent-2)">
-      <circle cx="104" cy="280" r="4"/><circle cx="192" cy="280" r="4"/><circle cx="280" cy="280" r="4"/>
-      <circle cx="368" cy="280" r="4"/><circle cx="456" cy="280" r="4"/><circle cx="544" cy="280" r="4"/>
-    </g>
-    <path d="M82 268 L100 276" stroke="var(--bad)" stroke-width="1.8" marker-end="url(#arr5)"/>
-    <text x="598" y="285" class="mono" fill="var(--bad)" font-size="12">x·2 + 0.5 ✗</text>
-    <defs><marker id="arr5" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--bad)"/></marker></defs>
+    <rect x="60" y="120" width="160" height="120" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="160" cy="180" r="13" fill="var(--accent)" opacity="0.8"/>
+    <rect x="60" y="120" width="160" height="120" fill="url(#px2)" stroke="var(--border)"/>
   </g>
+  <g>
+    <rect x="60" y="250" width="320" height="240" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="260" cy="370" r="26" fill="var(--accent)" opacity="0.8"/>
+    <rect x="60" y="250" width="320" height="240" fill="url(#px2)" stroke="var(--border)"/>
+  </g>
+  <!-- the detector, at the level where the object fits it -->
+  <rect x="72" y="12" width="26" height="26" fill="none" stroke="var(--good)" stroke-width="2"/>
+  <text x="112" y="21" class="svg-ink" font-size="12.5" font-weight="600">level 3: detected at pixel (2, 1) ✓</text>
+  <text x="112" y="37" class="svg-muted" font-size="12">now, where is that in the full-size image?</text>
+  <text x="152" y="84"  class="svg-muted" font-size="12">level 2</text>
+  <text x="232" y="184" class="svg-muted" font-size="12">level 1</text>
+  <text x="392" y="268" class="svg-muted" font-size="12">level 0: full resolution</text>
+
+  <!-- back down the pyramid, twice: the usual multiplication and the honest map -->
+  <path d="M68 20 L30 20 L30 335 L209 335" fill="none" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mapR)"/>
+  <path d="M68 32 L14 32 L14 370 L228 370" fill="none" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mapG)"/>
+
+  <!-- where each map lands -->
+  <path d="M218 328 L232 342 M232 328 L218 342" stroke="var(--bad)" stroke-width="2.5"/>
+  <path d="M225 335 L260 370" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="292" y="330" class="mono svg-ink" font-size="12.5">3.5 px off</text>
+  <circle cx="260" cy="370" r="3.5" fill="var(--good)"/>
+
+  <text x="392" y="335" class="svg-ink" font-size="12.5">x · 8 lands here ✗</text>
+  <text x="392" y="370" class="svg-ink" font-size="12.5">x · 8 + 3.5 lands on it ✓</text>
+  <text x="392" y="392" class="svg-muted" font-size="11.5">the half pixel per level is part of how</text>
+  <text x="392" y="408" class="svg-muted" font-size="11.5">the level was built, not a rounding slip</text>
 </svg>
-<figcaption>Fig. 5. Where is the <em>center</em> of coarse pixel 0? If the library keeps every second sample (A), it sits exactly on a full-res pixel and <code>x·2</code> is right. If it averages 2×2 blocks (B), it sits <em>between</em> them, and the honest map is <code>x·2 + 0.5</code>. Libraries disagree, few document which they do, and the error compounds: half a pixel per level is 4 pixels of drift by level 3.</figcaption>
+<figcaption>Fig. 5. The object is found on level 3, where it fits the detector, and then has to be reported in full-resolution coordinates. Multiplying by 8 assumes the two pixel grids share their corners. If the level kept every second sample they do, and <code>x·8</code> is right. If it averaged 2×2 blocks, every coarse pixel centre sits half a pixel further in, and the honest map is <code>x·8&nbsp;+&nbsp;3.5</code>. Libraries disagree, few document which they do, and the error compounds by half a pixel per level.</figcaption>
 </figure>
 
 <p>If “half a pixel” sounds precious, consider that whole framework ecosystems fought a multi-year war over exactly this: the infamous <code>align_corners</code> flag, whose default was <a href="https://jricheimer.github.io/tensorflow/2019/02/11/resize-confusion/">wrong in TensorFlow 1</a> for years. The flag still means different things in different frameworks: with <code>align_corners=False</code>, coarse pixel <em>k</em> sits at <em>2k</em> in TensorFlow 1 and at <em>2k</em>&nbsp;+&nbsp;0.5 in PyTorch. Same name, same value, half a pixel apart. Sub-pixel keypoints, optical flow, stereo: the entire point of these algorithms is precision <em>below</em> one pixel. A convention mismatch eats the whole error budget before your algorithm even starts.</p>
