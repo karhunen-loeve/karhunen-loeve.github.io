@@ -400,21 +400,103 @@
     box-shadow: 0 4px 18px rgba(0,0,0,.35);
   }
   .fv-rail-toggle svg { width: .95rem; height: .95rem; }
+  /* Sits above the page and drops into view only while it has focus, which
+     is the one moment it is any use. It is inserted as the first child of
+     the body, so it is the first thing a Tab reaches. */
+  .fv-skip {
+    position: fixed; z-index: 62; top: .6rem; left: .6rem;
+    transform: translateY(-180%); transition: transform .15s ease;
+    padding: .5rem .8rem; border-radius: var(--fv-radius);
+    background: var(--fv-accent); color: var(--fv-bg);
+    font: 700 .7rem/1 var(--fv-mono); letter-spacing: .1em;
+    text-transform: uppercase; text-decoration: none;
+  }
+  .fv-skip:focus { transform: none; }
   body { padding-left: var(--fv-w); }
   @media (max-width: 62rem) {
     body { padding-left: 0; }
+    /* Pushed off screen the panel was still in the tab order, so three
+       invisible links sat between the toggle and the article and the caret
+       disappeared into them. `visibility` takes it out of the order as well.
+
+       The two directions need different timing, hence the pair of rules.
+       Going out, the switch waits for the slide to finish, or the panel would
+       vanish on the spot instead of leaving. Coming in it has to be immediate:
+       with the switch left to the transition it landed a frame late, and
+       focus() on a panel that is still hidden does nothing, silently, which is
+       exactly how the first version of this failed to move the caret. */
     .fv-rail {
-      transform: translateX(-102%); transition: transform .22s ease;
+      transform: translateX(-102%);
+      transition: transform .22s ease, visibility 0s linear .22s;
+      visibility: hidden;
       box-shadow: 0 0 40px rgba(0,0,0,.45); width: min(19rem, 84vw);
     }
-    .fv-rail.open { transform: none; }
+    .fv-rail.open {
+      transform: none; visibility: visible;
+      transition: transform .22s ease, visibility 0s;
+    }
     .fv-rail-toggle { display: inline-flex; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .fv-rail { transition: none; }
+    .fv-rail, .fv-skip { transition: none; }
+  }
+  /* None of this belongs on paper. The panel is fixed, so a printout carried
+     it across the first page on top of the text, and the toggle and the skip
+     link are both instructions for something a sheet of paper cannot do. */
+  @media print {
+    .fv-rail, .fv-rail-toggle, .fv-skip { display: none; }
   }
   /* ── browser-tools rail ── end ────────────────────────────────────────── */
 </style>
+<!-- Structured data, the one description of this page a machine is actually
+     going to parse. The visible text says the same things; this says them in
+     a shape a search engine or an assistant can act on, so the page is cited
+     as an article by a named author rather than as an anonymous URL.
+     The dates carry the same placeholders as everything else and are filled
+     by stamp-dates.ps1. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://karhunen-loeve.github.io/#website",
+      "url": "https://karhunen-loeve.github.io/",
+      "name": "Type-Safe Computer Vision",
+      "description": "Image and signal transforms, and writing the code so a compiler knows what a number means.",
+      "inLanguage": "en",
+      "author": {
+        "@type": "Person",
+        "name": "Thomas Stephan",
+        "url": "https://github.com/karhunen-loeve"
+      },
+      "publisher": {
+        "@type": "Person",
+        "name": "Thomas Stephan",
+        "url": "https://github.com/karhunen-loeve"
+      }
+    },
+    {
+      "@type": "Blog",
+      "@id": "https://karhunen-loeve.github.io/#blog",
+      "url": "https://karhunen-loeve.github.io/",
+      "name": "Type-Safe Computer Vision",
+      "description": "Computer vision bugs that are really type bugs, and how a type system makes them unrepresentable.",
+      "inLanguage": "en",
+      "author": {
+        "@type": "Person",
+        "name": "Thomas Stephan",
+        "url": "https://github.com/karhunen-loeve"
+      },
+      "blogPost": [
+        "https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html",
+        "https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html",
+        "https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html"
+      ]
+    }
+  ]
+}
+</script>
 </head>
 <body>
 <canvas id="cells" aria-hidden="true"></canvas>
@@ -493,10 +575,76 @@
   var rail = document.getElementById("fv-rail");
   var btn = document.querySelector(".fv-rail-toggle");
   if (!rail || !btn) return;
-  btn.addEventListener("click", function () {
-    var open = rail.classList.toggle("open");
+
+  function set(open) {
+    rail.classList.toggle("open", open);
     btn.setAttribute("aria-expanded", String(open));
+  }
+
+  btn.addEventListener("click", function () {
+    var open = !rail.classList.contains("open");
+    set(open);
+    // The toggle is reached by keyboard as often as by thumb, so send the
+    // caret where the panel is, and hand it back on the way out. Without
+    // that, closing leaves focus on a link that has just gone invisible.
+    //
+    // A frame later, not straight away: until the class change has been taken
+    // into account the panel is still hidden, and focus() on something hidden
+    // does nothing at all and reports nothing either. Measured going nowhere
+    // before this was added.
+    if (open) {
+      requestAnimationFrame(function () {
+        var first = rail.querySelector("a, button");
+        if (first) first.focus();
+      });
+    } else {
+      btn.focus();
+    }
   });
+
+  // Escape, and a press anywhere outside. The panel covers the text it sits
+  // on, and reaching back to a button in the far corner to be rid of it is a
+  // chore on a phone.
+  addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && rail.classList.contains("open")) {
+      set(false);
+      btn.focus();
+    }
+  });
+  addEventListener("pointerdown", function (e) {
+    if (!rail.classList.contains("open")) return;
+    if (rail.contains(e.target) || btn.contains(e.target)) return;
+    set(false);
+  });
+
+  // The rail comes before the article in the source, so a keyboard and a
+  // screen reader both meet the tool list before the writing. Hence a skip
+  // link, built here rather than written into the markup: it needs a target,
+  // the target lives outside this block and is named differently on every
+  // page, and a skip link pointing at nothing is worse than no skip link.
+  // Built only once a target has actually been found, so it cannot be a dud.
+  //
+  // Waiting for the document, because this block sits at the top of the body
+  // and runs while the parser is still on its way to the article. Asking for
+  // it now finds nothing, which is how the first attempt shipped no link at
+  // all. With scripting off there is no link either, which is the honest
+  // outcome: there would be nothing to give it a target.
+  function skipLink() {
+    var main = document.querySelector("article, main");
+    if (!main || !document.body) return;
+    if (!main.id) main.id = "fv-content";
+    main.tabIndex = -1;
+    var skip = document.createElement("a");
+    skip.className = "fv-skip";
+    skip.href = "#" + main.id;
+    skip.textContent = "Skip to content";
+    document.body.insertBefore(skip, document.body.firstChild);
+  }
+  if (document.readyState === "loading") {
+    addEventListener("DOMContentLoaded", skipLink);
+  } else {
+    skipLink();
+  }
 })();
 </script>
 <!-- browser-tools rail: end -->
