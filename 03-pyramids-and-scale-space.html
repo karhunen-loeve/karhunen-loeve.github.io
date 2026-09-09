@@ -108,9 +108,20 @@
   .dek { color: var(--ink-2); font-size: 1.15rem; margin: 0 0 2.5rem; }
   h2 { font-size: 1.4rem; margin: 2.6rem 0 0.8rem; letter-spacing: -0.01em; }
   p  { margin: 0 0 1.1rem; }
-  figure { margin: 1.8rem 0; }
-  figure svg { display: block; width: 100%; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
-  figcaption { color: var(--muted); font-size: .85rem; margin-top: .55rem; line-height: 1.5; }
+  /* The drawings are laid out on a 680 unit canvas and their labels are 11 to
+     13 units tall. Let that canvas shrink to the width of a phone column and
+     the labels arrive at six pixels, which is not reading, it is guessing. So
+     below the width where they stay legible the drawing keeps its own size and
+     the figure pans sideways instead of shrinking. 38rem is the narrowest that
+     still holds the smallest label at ten pixels, and it is narrower than the
+     text column, so nothing above phone width changes.
+
+     The caption is a block child of the scroll box, so it takes the box width
+     rather than the drawing beside it, and pinning it to the left edge keeps
+     it still while the drawing slides underneath. */
+  figure { margin: 1.8rem 0; overflow-x: auto; overscroll-behavior-x: contain; }
+  figure svg { display: block; width: 100%; min-width: 38rem; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  figcaption { position: sticky; left: 0; color: var(--muted); font-size: .85rem; margin-top: .55rem; line-height: 1.5; }
   pre {
     background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
     padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.6;
