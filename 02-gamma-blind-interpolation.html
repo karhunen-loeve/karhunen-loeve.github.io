@@ -920,8 +920,9 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
   if (!panel || !window.createImageBitmap) return;
   panel.hidden = false;
 
-  var TARGET = 320;   /* thumbnail width in px */
-  var CAP    = 2400;  /* source is pre-scaled to this width to bound memory */
+  var TARGET = 320;      /* thumbnail width in px */
+  var CAP    = 2400;     /* source is pre-scaled to this width to bound memory */
+  var SLICE  = 8 << 20;  /* bytes of source the pre-scale holds at once */
 
   /* sRGB transfer function, both directions. A 256-entry table for decode
      because it runs once per source pixel per channel. */
@@ -934,6 +935,90 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
     v = v < 0 ? 0 : v > 1 ? 1 : v;
     var s = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
     return Math.round(s * 255);
+  }
+
+  /* Bring a large photo down to CAP, in linear light, one horizontal slice at
+     a time.
+
+     This used to be a single `drawImage` into a smaller canvas, which was
+     wrong in a way this article of all articles cannot afford: canvas scaling
+     averages the stored bytes. The demonstration then began by committing the
+     bug it goes on to measure, and since the damage is already done once, the
+     second reduction has less left to find. On a star field the reported
+     difference collapsed from 57% to 12% purely by handing in a photo above
+     the cap. Both paths still got the same input, so nothing looked broken;
+     the number was just quietly too small.
+
+     So the reduction happens here instead, decoded to light, and the result
+     goes back out as sRGB bytes: an honest smaller original, from which both
+     paths then start level.
+
+     Slices, because correctness needs one pass over every original pixel and
+     a 24 megapixel photo will not fit in one `ImageData`. `drawImage` copies
+     each slice at 1:1, so nothing is resampled on the way in, and the slice
+     height follows from a byte budget rather than a fixed row count, so the
+     footprint stays put whether the source is 3000 or 24000 pixels wide. */
+  function prescale(bmp, report) {
+    var pf = Math.max(1, Math.ceil(bmp.width / CAP));
+    var sw = bmp.width;
+    var canvas = document.createElement('canvas');
+
+    if (pf === 1) {
+      canvas.width = sw; canvas.height = bmp.height;
+      var ctx1 = canvas.getContext('2d', { willReadFrequently: true });
+      ctx1.drawImage(bmp, 0, 0);
+      return Promise.resolve(ctx1.getImageData(0, 0, sw, bmp.height));
+    }
+
+    var outW = Math.max(1, Math.floor(sw / pf));
+    var outH = Math.max(1, Math.floor(bmp.height / pf));
+    var out = new ImageData(outW, outH);
+    var od = out.data;
+
+    var rows = Math.max(1, Math.floor(SLICE / (sw * pf * 4)));
+    canvas.width = sw; canvas.height = rows * pf;
+    var sctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    /* One slice per frame rather than all of them in one go. A 34 megapixel
+       photo is a little under a second of arithmetic on a desktop and about
+       six on a mid-range phone, and spent in one block that is a frozen tab
+       with the word "reducing" sitting in it. Handing back a frame between
+       slices costs the sum of those waits, roughly a fifth of a second, and
+       buys a page that still scrolls and a count that visibly moves. */
+    return new Promise(function (resolve) {
+      var y0 = 0, told = -1;
+      function slice() {
+        var n = Math.min(rows, outH - y0);
+        sctx.drawImage(bmp, 0, y0 * pf, sw, n * pf, 0, 0, sw, n * pf);
+        var sd = sctx.getImageData(0, 0, sw, n * pf).data;
+        for (var y = 0; y < n; y++) {
+          for (var x = 0; x < outW; x++) {
+            var r = 0, g = 0, b = 0, k = 0;
+            for (var sy = y * pf; sy < (y + 1) * pf; sy++) {
+              for (var sx = x * pf; sx < (x + 1) * pf; sx++) {
+                var i = (sy * sw + sx) * 4;
+                r += DECODE[sd[i]]; g += DECODE[sd[i + 1]]; b += DECODE[sd[i + 2]];
+                k++;
+              }
+            }
+            var o = ((y0 + y) * outW + x) * 4;
+            od[o] = encode(r / k); od[o + 1] = encode(g / k); od[o + 2] = encode(b / k);
+            od[o + 3] = 255;
+          }
+        }
+        y0 += n;
+        /* Only when the tenth changes. Writing the count every slice dirties
+           the page, and a repaint here means the three fixed background
+           layers again: on a throttled phone that cost more than the
+           arithmetic it was reporting on, and roughly doubled the wait. The
+           yield stays either way, so the page keeps responding. */
+        var tenth = Math.floor((y0 / outH) * 10);
+        if (report && tenth !== told) { told = tenth; report(y0 / outH); }
+        if (y0 < outH) requestAnimationFrame(slice);
+        else resolve(out);
+      }
+      requestAnimationFrame(slice);
+    });
   }
 
   /* Box average over f×f blocks. `linear` decides whether the samples are
@@ -994,21 +1079,35 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
     var nameEl = document.getElementById('tryit-name');
     if (nameEl) nameEl.textContent = file.name;
     readout.textContent = 'reducing…';
+    var fileW = 0, fileH = 0;
     createImageBitmap(file).then(function (bmp) {
-      /* Pre-scale large photos so the arrays stay manageable. Both paths get
-         the identical input, so this bounds memory without deciding the
-         comparison. */
-      var scale = Math.min(1, CAP / bmp.width);
-      var w = Math.max(1, Math.round(bmp.width * scale));
-      var h = Math.max(1, Math.round(bmp.height * scale));
-      var stage = document.createElement('canvas');
-      stage.width = w; stage.height = h;
-      var sctx = stage.getContext('2d', { willReadFrequently: true });
-      sctx.drawImage(bmp, 0, 0, w, h);
-      bmp.close && bmp.close();
-      var src = sctx.getImageData(0, 0, w, h);
+      /* Bound the arrays, in linear light so the cap costs accuracy and not
+         the result. Below the cap this is a straight read of the pixels. */
+      fileW = bmp.width; fileH = bmp.height;
+      return prescale(bmp, function (done) {
+        readout.textContent = 'reducing in light, ' + Math.round(done * 100) + '%…';
+      }).then(function (src) {
+        bmp.close && bmp.close();
+        return src;
+      });
+    }).then(function (src) {
+      var w = src.width, h = src.height;
 
       var f = Math.max(1, Math.floor(w / TARGET));
+
+      /* Under twice the target width the block is one pixel across, so there
+         is no average to take and both paths copy the same bytes. The panel
+         then reported "0.0% darker", which reads as the article being wrong
+         rather than as the image being too small. Say which it is. */
+      if (f < 2) {
+        document.getElementById('tryit-out').hidden = true;
+        readout.textContent =
+          'That one is ' + w + ' px wide, already thumbnail size. Reducing it would average ' +
+          'single pixels, so both paths return the identical image and the comparison has ' +
+          'nothing to show. Pick a photo at least ' + (2 * TARGET) + ' px wide.';
+        return;
+      }
+
       var outW = Math.max(1, Math.floor(w / f));
       var outH = Math.max(1, Math.floor(h / f));
 
@@ -1027,8 +1126,14 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
           if (d > worst) worst = d;
         }
       }
+      /* Name the capped size the blocks were counted on, and the file's own
+         size when the two differ, so the block figure below can be checked
+         against something. */
+      var from = w === fileW
+        ? w + '×' + h
+        : w + '×' + h + ' (in light from ' + fileW + '×' + fileH + ')';
       readout.innerHTML =
-        outW + '×' + outH + ' from ' + w + '×' + h + ', ' + f + '×' + f + ' blocks · ' +
+        outW + '×' + outH + ' from ' + from + ', ' + f + '×' + f + ' blocks · ' +
         'mean luminance <strong>' + ln.toFixed(4) + '</strong> as bytes vs. ' +
         '<strong>' + ll.toFixed(4) + '</strong> in light · ' +
         'the byte average is <strong>' + pct.toFixed(1) + '%</strong> darker, ' +
