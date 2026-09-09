@@ -475,8 +475,13 @@
 
 <figure>
 <svg viewBox="0 0 680 330" role="img" aria-label="The SIFT scale space as a grid: three octaves as rows with shrinking image width, three blur layers as columns; each cell labeled with its sigma value, growing along both axes.">
-  <text x="386" y="34" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600">blur steps within an octave →</text>
+  <defs><marker id="arr6" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+  <!-- Axes as drawn arrows rather than glyphs in the labels: a rotated
+       label turns its arrow with it, so the vertical one would point right. -->
+  <text x="370" y="34" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600">blur steps within an octave</text>
+  <path d="M95 44 L645 44" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr6)"/>
   <text x="40" y="190" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600" transform="rotate(-90 40 190)">octaves: resolution halves</text>
+  <path d="M58 56 L58 268" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr6)"/>
   <!-- octave 0: full width cells -->
   <g>
     <text x="80" y="86" class="svg-muted" font-size="12" text-anchor="end" >o0</text>
