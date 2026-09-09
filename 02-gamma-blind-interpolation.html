@@ -135,14 +135,21 @@
   .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
   .byline a { color: var(--accent); text-decoration: none; }
   .byline a:hover { text-decoration: underline; }
-  /* ---------- Fig. 1: the same pattern, fine enough for the eye to average ---------- */
-  .fine-strip { margin-top: .75rem; }
-  .fine-strip canvas {
-    display: block; width: 100%; height: 4.5rem;
-    border: 1px solid var(--border); border-radius: 8px;
+  /* ---------- Fig. 1: a canvas placed inside the diagram, as its third row ----------
+     The SVG scales to the column width and keeps its aspect ratio, so the
+     wrapper's box is the SVG's box and percentages of the one are percentages
+     of the other. That is what lets a real canvas sit exactly under the 188
+     swatch without hard-coding a pixel size. */
+  .fig1 { position: relative; }
+  .fig1 canvas {
+    position: absolute;
+    /* rect x=290..380, y=215..285 of the 680x330 viewBox */
+    left: 42.647%; top: 65.152%;
+    border-radius: 6px;
     image-rendering: pixelated;
     /* fallback for a browser that never runs the script: a CSS checkerboard at
        one CSS pixel per square, coarser than the canvas but honest */
+    width: 13.235%; height: 21.212%;
     background-image:
       linear-gradient(45deg, #000 25%, transparent 0 75%, #000 0),
       linear-gradient(45deg, #000 25%, transparent 0 75%, #000 0);
@@ -150,7 +157,6 @@
     background-size: 2px 2px;
     background-color: #fff;
   }
-  .fine-strip .cap { font: 500 .74rem/1.4 var(--mono); color: var(--muted); margin: .4rem 0 0; }
 
   /* ---------- side-by-side raster figure and the try-it-yourself panel ---------- */
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; justify-items: center; }
@@ -370,7 +376,8 @@
 <p>You are downscaling a tiny image: a 2×2 checkerboard of pure black and pure white, shrinking to a single pixel. Physically, that pixel should emit exactly half the light of white, because it replaces an area that was half black, half white. What value do you store?</p>
 
 <figure>
-<svg viewBox="0 0 680 250" role="img" aria-label="A black and white checkerboard downscaled two ways: naive byte averaging gives a dark gray of value 128; averaging in linear light gives the visually correct gray of value 188">
+<div class="fig1">
+<svg viewBox="0 0 680 330" role="img" aria-label="A black and white checkerboard downscaled two ways: naive byte averaging gives a dark gray of value 128; averaging in linear light gives the visually correct gray of value 188">
   <!-- checkerboard -->
   <g>
     <rect x="50" y="45" width="130" height="130" fill="#ffffff" stroke="var(--border)"/>
@@ -393,12 +400,16 @@
     <text x="395" y="155" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">average in light = 188</tspan></text>
     <text x="395" y="176" class="svg-ink2" font-size="13">what half of white’s light actually looks like</text>
   </g>
+  <!-- the same pattern, fine enough that the eye averages it; the swatch-sized
+       hole at x=290..380, y=215..285 is filled by the canvas next to this svg -->
+  <g>
+    <text x="395" y="240" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">the same pattern</tspan></text>
+    <text x="395" y="261" class="svg-ink2" font-size="13">one square per screen pixel, averaged by your eye</text>
+  </g>
 </svg>
-<div class="fine-strip">
   <canvas id="sq-fine" aria-label="The same 50/50 black and white pattern at one square per screen pixel, which the eye reads as a light gray."></canvas>
-  <p class="cap">the same pattern, one square per screen pixel</p>
 </div>
-<figcaption>Fig. 1. The squares in the strip are one screen pixel each, so your eye averages them for you instead of resolving them. Compare that gray with the two swatches above: it is not the byte average. Your eye averages <em>light</em>, and so does every camera lens; naive code averages <em>bytes</em>. (Zooming the page hands the pattern to the browser&rsquo;s resampler, which averages bytes and drags it back toward 128.)</figcaption>
+<figcaption>Fig. 1. The third swatch is the same 50/50 pattern with one square per screen pixel, so your eye averages it instead of resolving it. Hold it against the two above: it is not the byte average. Your eye averages <em>light</em>, and so does every camera lens; naive code averages <em>bytes</em>. (Zooming the page hands the pattern to the browser&rsquo;s resampler, which averages bytes and drags it back toward 128.)</figcaption>
 </figure>
 
 <p>If your answer was 128, you are in excellent company: for years this was the default behavior of nearly every image library, browser, and game engine, and it is still the default in most computer-vision code today. It is also measurably, visibly wrong. The correct answer is <strong>188</strong>.</p>
@@ -970,6 +981,12 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
     var h = Math.max(1, Math.round(css.height * dpr));
     canvas.width = w;
     canvas.height = h;
+    /* Pin the CSS box to an exact multiple of device pixels. Without this the
+       element keeps its fractional percentage width, the browser resamples a
+       pattern that sits exactly at the resolution limit, and the beat between
+       the two grids shows up as moiré. */
+    canvas.style.width = (w / dpr) + 'px';
+    canvas.style.height = (h / dpr) + 'px';
     var ctx = canvas.getContext('2d');
     var img = ctx.createImageData(w, h);
     var d = img.data;
