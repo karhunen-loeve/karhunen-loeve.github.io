@@ -301,9 +301,36 @@
     .card { grid-template-columns: 1fr; gap: .7rem; }
     .card .trace { height: 34px; }
   }
+  /* ---------- print ---------- */
+  /* A browser leaves backgrounds out of a printout and keeps text colours,
+     and this palette is light ink on a dark ground. Printing part 2 gave a
+     PDF with 28 pure-white fills sitting on unmarked paper, so the page was
+     partly blank without ever saying so.
+
+     The fix is a palette rather than a stylesheet. Every rule on the page,
+     and every inline figure, already reads its colours from these names, so
+     redefining them turns the whole thing over at once, figures included.
+
+     The fixed texture layers and the tinted canvas go: an ornament made for
+     a screen is only toner on paper. The panning figures are let out of
+     their scroll box, since on paper a scroll box is a crop. */
+  @media print {
+    :root {
+      color-scheme: light;
+      --bg: #fff; --panel: #fff; --grid: #b4b4b4; --grid-2: #b4b4b4;
+      --g-fine: transparent; --g-mid: transparent; --g-coarse: transparent;
+      --phos: #00563f; --phos-2: #00563f; --amber: #6b3f00;
+      --violet: #3b2f70; --ink: #000; --ink-2: #1a1a1a; --ink-3: #444;
+    }
+    body { padding-left: 0; }
+    body::before, body::after, #cells { display: none; }
+    figure { overflow: visible; }
+    figure svg { min-width: 0; }
+    figure, pre, table { break-inside: avoid; }
+  }
   /* ── browser-tools rail ── begin ──────────────────────────────────────── */
   :root { --fv-w: 15.5rem; }
-  .fv-rail, .fv-rail-toggle {
+  .fv-rail, .fv-rail-toggle, .fv-skip {
     --fv-bg: var(--panel);
     --fv-ink: var(--ink);
     --fv-ink-2: var(--ink-2);
