@@ -591,7 +591,75 @@
   <text x="392" y="392" class="svg-muted" font-size="11.5">the half pixel comes from how the</text>
   <text x="392" y="408" class="svg-muted" font-size="11.5">level was built, not from rounding</text>
 </svg>
-<figcaption>Fig. 5. Found on level 3, reported in full-resolution coordinates. Multiplying by 8 assumes the two pixel grids share their corners; if the level averaged 2×2 blocks they do not, and the drift doubles with every step down.</figcaption>
+<figcaption>Fig. 5. Found on level 3, reported in full-resolution coordinates. Multiplying by 8 assumes a coarse pixel sits exactly on a full-resolution one (Fig. 6); if the level averaged 2×2 blocks it sits half a pixel further in, and the drift doubles with every step down.</figcaption>
+</figure>
+
+<figure>
+<svg viewBox="0 0 680 250" role="img" aria-label="One row of eight full-resolution pixels with their centres marked. Above it, the four coarse pixels of the next level down, placed two ways: keeping every second sample puts coarse pixel 2 exactly on full-resolution pixel 4, while averaging 2 by 2 blocks puts it on the boundary between pixels 4 and 5, half a pixel further in.">
+  <!-- A: decimation keeps a sample, so a coarse pixel *is* a fine pixel -->
+  <text x="140" y="26" class="svg-ink" font-size="12.5" font-weight="600">A · keep every second sample<tspan class="mono" font-weight="500">  →  fine = 2 · coarse</tspan></text>
+  <g class="svg-muted" font-size="11" text-anchor="middle">
+    <text x="165" y="46">0</text>
+    <text x="265" y="46">1</text>
+    <text x="365" y="46">2</text>
+    <text x="465" y="46">3</text>
+  </g>
+  <g>
+    <circle cx="165" cy="60" r="4.5" fill="var(--accent)"/>
+    <circle cx="265" cy="60" r="4.5" fill="var(--accent)"/>
+    <circle cx="365" cy="60" r="4.5" fill="var(--accent)"/>
+    <circle cx="465" cy="60" r="4.5" fill="var(--accent)"/>
+  </g>
+  <path d="M365 66 L365 146" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="560" y="64" class="svg-ink2" font-size="11.5">sits on 4</text>
+
+  <!-- B: area averaging puts the coarse centre between two fine centres -->
+  <text x="140" y="88" class="svg-ink" font-size="12.5" font-weight="600">B · average each 2×2 block<tspan class="mono" font-weight="500">  →  fine = 2 · coarse + 0.5</tspan></text>
+  <g class="svg-muted" font-size="11" text-anchor="middle">
+    <text x="190" y="106">0</text>
+    <text x="290" y="106">1</text>
+    <text x="390" y="106">2</text>
+    <text x="490" y="106">3</text>
+  </g>
+  <g>
+    <circle cx="190" cy="120" r="4.5" fill="var(--accent-2)"/>
+    <circle cx="290" cy="120" r="4.5" fill="var(--accent-2)"/>
+    <circle cx="390" cy="120" r="4.5" fill="var(--accent-2)"/>
+    <circle cx="490" cy="120" r="4.5" fill="var(--accent-2)"/>
+  </g>
+  <path d="M390 126 L390 146" stroke="var(--accent-2)" stroke-width="1.2" stroke-dasharray="4 4"/>
+  <text x="560" y="124" class="svg-ink2" font-size="11.5">sits between 4 and 5</text>
+
+  <!-- the ruler both are measured against -->
+    <rect x="140" y="150" width="50" height="40" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="190" y="150" width="50" height="40" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="240" y="150" width="50" height="40" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="290" y="150" width="50" height="40" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="340" y="150" width="50" height="40" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="390" y="150" width="50" height="40" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="440" y="150" width="50" height="40" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="490" y="150" width="50" height="40" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <circle cx="165" cy="170" r="3" fill="var(--muted)"/>
+    <circle cx="215" cy="170" r="3" fill="var(--muted)"/>
+    <circle cx="265" cy="170" r="3" fill="var(--muted)"/>
+    <circle cx="315" cy="170" r="3" fill="var(--muted)"/>
+    <circle cx="365" cy="170" r="3" fill="var(--muted)"/>
+    <circle cx="415" cy="170" r="3" fill="var(--muted)"/>
+    <circle cx="465" cy="170" r="3" fill="var(--muted)"/>
+    <circle cx="515" cy="170" r="3" fill="var(--muted)"/>
+  <g class="svg-muted" font-size="11" text-anchor="middle">
+    <text x="165" y="210">0</text>
+    <text x="215" y="210">1</text>
+    <text x="265" y="210">2</text>
+    <text x="315" y="210">3</text>
+    <text x="365" y="210">4</text>
+    <text x="415" y="210">5</text>
+    <text x="465" y="210">6</text>
+    <text x="515" y="210">7</text>
+  </g>
+  <text x="340" y="236" text-anchor="middle" class="svg-muted" font-size="12">full-resolution pixels, centres marked</text>
+</svg>
+<figcaption>Fig. 6. The same coarse pixel, placed two ways. Keep every second sample and it lands on a full-resolution pixel. Average 2×2 blocks and it lands between two of them, half a pixel further in, and that half pixel is all of Fig. 5&rsquo;s drift.</figcaption>
 </figure>
 
 <p>If “half a pixel” sounds precious, consider that whole framework ecosystems fought a multi-year war over exactly this: the infamous <code>align_corners</code> flag, whose default was <a href="https://jricheimer.github.io/tensorflow/2019/02/11/resize-confusion/">wrong in TensorFlow 1</a> for years. The flag still means different things in different frameworks: with <code>align_corners=False</code>, coarse pixel <em>k</em> sits at <em>2k</em> in TensorFlow 1 and at <em>2k</em>&nbsp;+&nbsp;0.5 in PyTorch. Same name, same value, half a pixel apart. Sub-pixel keypoints, optical flow, stereo: the entire point of these algorithms is precision <em>below</em> one pixel. A convention mismatch eats the whole error budget before your algorithm even starts.</p>
