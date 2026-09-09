@@ -181,7 +181,24 @@
   }
   .tryit > h3 { margin: 0 0 .5rem; font-size: 1rem; }
   .tryit p { font-size: .9rem; color: var(--ink-2); }
-  .tryit input[type=file] { font: inherit; font-size: .85rem; color: var(--ink-2); }
+  /* the same button the tool pages use, so the panel does not look like a
+     browser dialog dropped into the article */
+  .tryit .btn {
+    font: 600 .8rem/1 system-ui, sans-serif;
+    border: 1px solid var(--border); border-radius: 7px;
+    background: var(--code-bg); color: var(--ink);
+    padding: .5rem .8rem; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .tryit .btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* the native control keeps the keyboard behaviour and gives up the looks */
+  .tryit input[type=file] {
+    position: absolute; width: 1px; height: 1px; padding: 0;
+    opacity: 0; overflow: hidden; white-space: nowrap;
+  }
+  .tryit input[type=file]:focus-visible + .btn { border-color: var(--accent); color: var(--accent); }
+  .tryit .filebar { position: relative; display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+  .tryit .fname { font: .78rem/1.4 var(--mono); color: var(--muted); }
   .tryit .readout { font: .8rem/1.5 var(--mono); color: var(--muted); margin: .7rem 0 0; }
   .tryit .readout strong { color: var(--ink); font-weight: 600; }
   @media (max-width: 34rem) { .pair { grid-template-columns: 1fr; } }
@@ -610,7 +627,11 @@
 <section class="tryit" id="tryit" hidden>
   <h3>Try it with your own photo</h3>
   <p>Both thumbnails below are computed here, in this page, with the same box average over the same blocks. The only difference is whether the sRGB curve is decoded first. Nothing is uploaded: the file never leaves your machine.</p>
-  <p><input type="file" id="tryit-file" accept="image/*"></p>
+  <p class="filebar">
+    <input type="file" id="tryit-file" accept="image/*">
+    <label class="btn" for="tryit-file">Choose a photo</label>
+    <span class="fname" id="tryit-name">none chosen yet</span>
+  </p>
   <div class="pair" id="tryit-out" hidden>
     <div>
       <canvas id="tryit-naive"></canvas>
@@ -959,6 +980,8 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
   document.getElementById('tryit-file').addEventListener('change', function (ev) {
     var file = ev.target.files && ev.target.files[0];
     if (!file) return;
+    var nameEl = document.getElementById('tryit-name');
+    if (nameEl) nameEl.textContent = file.name;
     readout.textContent = 'reducing…';
     createImageBitmap(file).then(function (bmp) {
       /* Pre-scale large photos so the arrays stay manageable. Both paths get
