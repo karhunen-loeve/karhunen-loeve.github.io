@@ -535,7 +535,7 @@ the detector actually decided about it. Everything happens in this tab.</p>
 <p>FAST does not look at gradients. It looks at sixteen pixels arranged in a circle of radius 3
 around a candidate, and asks a yes-or-no question: is there a run of at least <em>n</em>
 consecutive ring pixels that are all brighter than the centre by more than <em>t</em>, or all
-darker by more than <em>t</em>? That is the entire detector. The ring diagram in the inspector
+darker by more than <em>t</em>? That is the entire detector, and it is Rosten and Drummond&rsquo;s, from <a href="https://www.edwardrosten.com/work/fast.html">Machine learning for high-speed corner detection</a> (ECCV 2006); their page collects both papers, the FAST-ER follow-up and the reference code. The ring diagram in the inspector
 is that question, drawn: each of the sixteen positions coloured by which side of the band it
 fell on, with the winning arc marked.</p>
 
@@ -554,18 +554,20 @@ an arc.</p>
 <p>The module behind this page is a thin shell. Every number you just read came out of these
 calls, in this order:</p>
 
-<pre class="snippet"><code><span class="kw">use</span> fovea::border::<span class="ty">Skip</span>;
-<span class="kw">use</span> fovea::features::detect::{fast, refine_corners, <span class="ty">FastParams</span>, <span class="ty">SegmentTest</span>};
+<pre class="snippet"><code><span class="kw">use</span> fovea::border::{<span class="ty">Clamp</span>, <span class="ty">Skip</span>};
+<span class="kw">use</span> fovea::features::detect::{fast, refine_corners, <span class="ty">FastParams</span>, <span class="ty">NmsRadius</span>, <span class="ty">SegmentTest</span>};
 <span class="kw">use</span> fovea::features::retain_top_n;
-<span class="kw">use</span> fovea::transform::{convert_image, sobel_x, sobel_y};
+<span class="kw">use</span> fovea::transform::{convert_image, sobel_x, sobel_y, <span class="ty">Luminance</span>, <span class="ty">SrgbGamma</span>};
 
-<span class="cmt">// The browser hands over sRGB. Undo the transfer curve before taking</span>
+<span class="cmt">// The browser hands over sRGB. Undo the transfer curve first, then take</span>
 <span class="cmt">// luminance: averaging channels in sRGB moves every corner you find.</span>
-<span class="kw">let</span> luma: <span class="ty">Image</span>&lt;<span class="ty">MonoF32</span>&gt; = convert_image(&amp;srgb, srgb_to_linear_luma);
+<span class="kw">let</span> light: <span class="ty">Image</span>&lt;<span class="ty">RgbF32</span>&gt;  = convert_image(&amp;srgb, <span class="ty">SrgbGamma</span>);
+<span class="kw">let</span> luma:  <span class="ty">Image</span>&lt;<span class="ty">MonoF32</span>&gt; = convert_image(&amp;light, <span class="ty">Luminance</span>);
 
 <span class="cmt">// Both silent failure modes are errors here, not empty results.</span>
-<span class="kw">let</span> test = <span class="ty">SegmentTest</span>::try_new(0.08, 9)?;
-<span class="kw">let</span> params = <span class="ty">FastParams</span>::try_new(test, 3)?;
+<span class="kw">let</span> test   = <span class="ty">SegmentTest</span>::try_new(0.08, 9)?;
+<span class="kw">let</span> radius = <span class="ty">NmsRadius</span>::try_new(3)?;
+<span class="kw">let</span> params = <span class="ty">FastParams</span>::new(test, radius);
 
 <span class="cmt">// `Skip`: the ring does not fit within three pixels of the frame, and a</span>
 <span class="cmt">// corner reported there would be made of invented samples.</span>
@@ -573,7 +575,8 @@ calls, in this order:</p>
 retain_top_n(&amp;<span class="kw">mut</span> corners, 400);
 
 <span class="cmt">// Detection puts corners on the grid. Accuracy is a separate step.</span>
-refine_corners(&amp;<span class="kw">mut</span> corners, &amp;sobel_x(&amp;luma, &amp;<span class="ty">Clamp</span>), &amp;sobel_y(&amp;luma, &amp;<span class="ty">Clamp</span>), 2)?;</code></pre>
+<span class="kw">let</span> window = <span class="ty">NmsRadius</span>::try_new(2)?;
+refine_corners(&amp;<span class="kw">mut</span> corners, &amp;sobel_x(&amp;luma, &amp;<span class="ty">Clamp</span>), &amp;sobel_y(&amp;luma, &amp;<span class="ty">Clamp</span>), window)?;</code></pre>
 
 <p>The threshold slider is the <code>0.08</code>. The arc slider is the <code>9</code>. When you
 drag either one past the edge of what the detector can honestly do, you do not get an empty
@@ -727,8 +730,8 @@ const SAMPLES = [
   },
   {
     name: "Portrait",
-    note: "A real photograph, loaded from this site.",
-    src: "../images/profile.jpg",
+    note: "An inked portrait, loaded from this site. Hard line work is what the segment test likes: long arcs of one sign, and plenty of them.",
+    src: "../images/profile-comic.jpg",
   },
 ];
 
