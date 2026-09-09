@@ -667,22 +667,36 @@
 
 <p>Here is how <a href="https://crates.io/crates/fovea">fovea</a> answers all three, as of v0.4.0 (September 2026). The principle: <strong>a level is not a bare image; it is an image that knows its own geometry.</strong></p>
 
-<pre><code><span class="cmt">// Going back up names its target. Trap 1 cannot compile into existence:</span>
-<span class="kw">let</span> back_up = pyr_up(&amp;level_below, level_above.size())?;  <span class="cmt">// impossible parent size? a value, not a crash</span>
+<p><strong>Trap 1, the staircase that would not come back up.</strong> The information that got lost was the parent&rsquo;s size, so the up-step asks for it. There is no overload that guesses:</p>
 
-<span class="cmt">// The two ladders are two different capabilities. Trap 2 gets vocabulary:</span>
-<span class="kw">let</span> sigma = layer.sigma();          <span class="cmt">// blur, in base-image pixels (ScaleLevel)</span>
-<span class="kw">let</span> step  = level.pixel_distance(); <span class="cmt">// sampling stride vs. base image (Decimated)</span>
-<span class="cmt">// A mipmap-style pyramid simply doesn't offer .sigma(), so asking is a compile error,</span>
-<span class="cmt">// because that number would be a lie. SIFT's grid is its own type, indexed (octave, layer)</span>
-<span class="cmt">// no more octave·(S+3)+layer arithmetic, no integers with three values packed inside.</span>
+<pre><code><span class="kw">let</span> back_up = pyr_up(&amp;small);
+<span class="err">// error[E0061]: this function takes 2 arguments but 1 argument was supplied</span>
+<span class="err">//   = note: 101 and 100 both halve to 50, so there is nothing to guess from</span>
 
-<span class="cmt">// And coming down is an exact, named mapping. Trap 3 has one implementation, not N:</span>
-<span class="kw">let</span> p_full = level.to_base(p_local);
-<span class="cmt">// = origin_offset + pixel_distance · p_local, and the half-pixel term is part of</span>
-<span class="cmt">// the contract of *how this level was built*, not something you had to be at the</span>
-<span class="cmt">// campfire for. Keypoints carry a continuous σ in base-image units.</span>
-<span class="cmt">// Nothing to unpack, nothing to sign-extend.</span></code></pre>
+<span class="cmt">// Name the target and the round trip is exact, odd sizes included:</span>
+<span class="kw">let</span> back_up: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = pyr_up(&amp;small, parent.size())?;</code></pre>
+
+<p><strong>Trap 2, the two ladders.</strong> Blur and resolution are two capabilities, not one number, and a function asks for the one it actually uses. Asking a level for what it does not have is a compile error, not a plausible zero:</p>
+
+<pre><code><span class="kw">fn</span> detect&lt;L: <span class="ty">Decimated</span>&gt;(level: &amp;L) {
+    <span class="kw">let</span> step  = level.pixel_distance(); <span class="cmt">// sampling stride: that is what Decimated means</span>
+    <span class="kw">let</span> sigma = level.sigma();
+    <span class="err">// error[E0599]: no method named `sigma` found for type parameter `L`</span>
+    <span class="err">//   = help: the method exists if `L: ScaleLevel`, which a resolution-only level is not</span>
+}
+
+<span class="cmt">// SIFT needs both ladders at once, so its grid is its own type, indexed</span>
+<span class="cmt">// (octave, layer). No octave·(S+3)+layer by hand, no three values in one int.</span></code></pre>
+
+<p><strong>Trap 3, the way back down.</strong> The best fix is not a safer multiplication, it is not having to multiply. A detector that runs on a level reports in the base frame:</p>
+
+<pre><code><span class="kw">let</span> corners = fast_in_level(&amp;level, params, &amp;<span class="ty">Skip</span>);
+<span class="cmt">// found on a 32×32 level, reported in 64×64 base coordinates</span>
+
+<span class="cmt">// And when you do lift a point yourself, it is one named method:</span>
+<span class="kw">let</span> p_full = level.to_base(p_local); <span class="cmt">// origin_offset + pixel_distance · p_local</span>
+<span class="cmt">// The half-pixel term is part of the contract of how this level was built,</span>
+<span class="cmt">// not something you had to be at the campfire for.</span></code></pre>
 
 <p>And because this is the same library from part 2: building any of it from a gamma-encoded image is still a compile error. A pyramid is blurs all the way down, so every level would repeat the 128-vs-188 mistake, so the type system demands linear light at the front door.</p>
 
