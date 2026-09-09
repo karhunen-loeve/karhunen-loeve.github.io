@@ -412,44 +412,56 @@
 <p>Remember the two operations, blur and shrink? Most libraries fuse them into one function and call the result “scale.” But they are <em>different axes</em>, and you can move along each independently:</p>
 
 <figure>
-<svg viewBox="0 0 680 420" role="img" aria-label="A two-by-two matrix. Horizontal axis: resolution shrinks. Vertical axis: blur grows. Top-left original sharp image; top-right shrink only (mipmap); bottom-left blur only (scale stack); bottom-right both (Gaussian pyramid).">
+<svg viewBox="0 0 680 420" role="img" aria-label="A two-by-two matrix. Horizontal axis: resolution shrinks. Vertical axis: blur grows. Top-left the original image; top-right the same content at half resolution, a mipmap level; bottom-left the same resolution with detail smoothed away, a scale stack; bottom-right both at once, a Gaussian pyramid level.">
   <defs>
-    <filter id="soft1"><feGaussianBlur stdDeviation="1.6"/></filter>
-    <filter id="soft2"><feGaussianBlur stdDeviation="3.2"/></filter>
-    <pattern id="tex" width="16" height="16" patternUnits="userSpaceOnUse">
+    <!-- One tile of content, used at two scales. Halving resolution has to
+         redraw the same content smaller; drawing fewer tiles of the same size
+         would be a crop, which is a different operation entirely. -->
+    <g id="tile">
       <rect width="16" height="16" fill="var(--fill-soft)"/>
       <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
       <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+    </g>
+    <pattern id="tex" width="16" height="16" patternUnits="userSpaceOnUse">
+      <use href="#tile"/>
     </pattern>
+    <pattern id="texHalf" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="scale(0.5)">
+      <use href="#tile"/>
+    </pattern>
+    <!-- The bottom row carries the same blur measured in base-image pixels, so
+         the half-resolution cell is drawn with half the sigma. A pyramid level
+         is band-limited, not soft. -->
+    <filter id="soft1"><feGaussianBlur stdDeviation="1.3"/></filter>
+    <filter id="soft2"><feGaussianBlur stdDeviation="2.6"/></filter>
+    <marker id="arr4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker>
   </defs>
   <!-- axes -->
   <path d="M110 60 L610 60" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr4)"/>
   <text x="360" y="46" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600">resolution shrinks →</text>
   <path d="M84 86 L84 386" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr4)"/>
   <text x="64" y="236" text-anchor="middle" class="svg-ink2" font-size="13" font-weight="600" transform="rotate(-90 64 236)">blur grows →</text>
-  <defs><marker id="arr4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
-  <!-- top-left: original -->
+  <!-- top-left: the original -->
   <g>
-    <rect x="120" y="86" width="160" height="110" fill="url(#tex)" stroke="var(--border)"/>
+    <rect x="120" y="86" width="160" height="112" fill="url(#tex)" stroke="var(--border)"/>
     <text x="200" y="216" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">original</text>
   </g>
-  <!-- top-right: shrink only -->
+  <!-- top-right: fewer samples, same content, no pre-filter -->
   <g>
-    <rect x="420" y="86" width="80" height="55" fill="url(#tex)" stroke="var(--border)"/>
+    <rect x="420" y="86" width="80" height="56" fill="url(#texHalf)" stroke="var(--border)"/>
     <text x="460" y="216" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">shrink only</text>
     <text x="460" y="234" text-anchor="middle" class="svg-muted" font-size="11.5">GPU mipmaps · “stride” in deep nets</text>
   </g>
-  <!-- bottom-left: blur only -->
+  <!-- bottom-left: every sample kept, detail removed -->
   <g>
-    <rect x="120" y="266" width="160" height="110" fill="url(#tex)" filter="url(#soft2)" stroke="var(--border)"/>
-    <rect x="120" y="266" width="160" height="110" fill="none" stroke="var(--border)"/>
+    <rect x="120" y="266" width="160" height="112" fill="url(#tex)" filter="url(#soft2)"/>
+    <rect x="120" y="266" width="160" height="112" fill="none" stroke="var(--border)"/>
     <text x="200" y="396" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">blur only: “scale stack”</text>
     <text x="200" y="414" text-anchor="middle" class="svg-muted" font-size="11.5">blob detection · registration (often the best choice!)</text>
   </g>
-  <!-- bottom-right: both -->
+  <!-- bottom-right: pre-filter, then keep every second sample -->
   <g>
-    <rect x="420" y="294" width="80" height="55" fill="url(#tex)" filter="url(#soft1)" stroke="var(--border)"/>
-    <rect x="420" y="294" width="80" height="55" fill="none" stroke="var(--border)"/>
+    <rect x="420" y="294" width="80" height="56" fill="url(#texHalf)" filter="url(#soft1)"/>
+    <rect x="420" y="294" width="80" height="56" fill="none" stroke="var(--border)"/>
     <text x="460" y="396" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">both: Gaussian pyramid</text>
     <text x="460" y="414" text-anchor="middle" class="svg-muted" font-size="11.5">the “classic”, but only one cell of four</text>
   </g>
