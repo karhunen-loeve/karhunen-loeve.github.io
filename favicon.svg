@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <title>Karhunen-Loeve</title>
+  <rect width="16" height="16" rx="2" fill="#0b1418"/>
+  <rect x="2" y="2" width="7" height="7" fill="#57ffcf"/>
+  <rect x="10" y="2" width="4" height="4" fill="#57ffcf" opacity=".62"/>
+  <rect x="10" y="7" width="2" height="2" fill="#57ffcf" opacity=".38"/>
+  <rect x="2" y="11" width="12" height="1" fill="#57ffcf" opacity=".3"/>
+</svg>
