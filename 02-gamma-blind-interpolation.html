@@ -848,6 +848,23 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
   measure();
   draw();
 
+  // That first measurement runs while the page can still grow: images and
+  // fonts are not in yet, and a panel that ships as `hidden` only appears when
+  // its own script runs. Any later change in height moves the text away from
+  // the holes cut for it, which shows up as background cells sitting behind
+  // paragraphs further down the page. So measure again whenever the document
+  // can have changed size. Re-measuring only paints, it never reflows, so
+  // observing the body cannot feed itself.
+  function remeasure() { measure(); draw(); }
+  addEventListener('load', remeasure);
+  if (window.ResizeObserver && document.body) {
+    var rt = null;
+    new ResizeObserver(function () {
+      clearTimeout(rt);
+      rt = setTimeout(remeasure, 80);
+    }).observe(document.body);
+  }
+
   var queued = false;
   addEventListener('scroll', function () {
     if (queued) return;
