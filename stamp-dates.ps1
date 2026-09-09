@@ -76,7 +76,8 @@ foreach ($f in $targets) {
 
 if ($touched -eq 0) { Write-Warning 'No placeholders found — already stamped?' }
 
-$left = Select-String -Path (Join-Path $here '*.html'), (Join-Path $here 'feed.xml') -Pattern '@@(DATE|HUMAN)\d@@' -ErrorAction SilentlyContinue
+$left = Select-String -Path (Join-Path $here '*.html'), (Join-Path $here 'feed.xml'),
+                            (Join-Path $here 'sitemap.xml') -Pattern '@@(DATE|HUMAN)\d@@' -ErrorAction SilentlyContinue
 if ($left) {
   Write-Warning "Placeholders still present:"
   $left | ForEach-Object { Write-Warning "  $($_.Filename):$($_.LineNumber)" }

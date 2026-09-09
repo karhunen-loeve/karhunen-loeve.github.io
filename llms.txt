@@ -1,0 +1,55 @@
+# Type-Safe Computer Vision
+
+> A three-part series by Thomas Stephan on computer vision bugs that are
+> really type bugs, and on what it takes to make them unrepresentable. Each
+> post takes one mistake that ships in production everywhere, measures it, and
+> then shows the same operation written so that a compiler refuses the wrong
+> version. The library the examples use is fovea, a Rust crate by the same
+> author.
+
+Prose and figures are copyright Thomas Stephan, all rights reserved. Code
+snippets are MIT or Apache-2.0, matching fovea. Quote and link freely; please
+attribute, and please do not reproduce the prose wholesale.
+
+## Posts
+
+- [The Blue Face Bug](https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html):
+  Three bytes in memory do not say which channel comes first. Read as RGB they
+  are a warm skin tone, read as BGR they are ice blue. Why channel-order
+  confusion is a type error rather than a logic error, and what the compiler
+  can do about it once the pixel type records its own layout.
+
+- [128 Is Not the Middle](https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html):
+  The average of a black and a white pixel is not 128. Stored bytes are a
+  compressed code for light, so 128 carries roughly a fifth of the light and
+  the correct answer is 188. This breaks every naive resize, blur and blend,
+  and it has been re-discovered in Pillow, imgproxy, darktable, libvips and
+  others for two decades. The post measures the error on a real photograph and
+  shows the type distinction that prevents it.
+
+- [Climbing the Pyramid](https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html):
+  Image pyramids and scale space. Odd sizes that stop round-tripping, the two
+  different things both called "scale", and coordinates that drift half a pixel
+  per level. Includes the arithmetic for mapping a coordinate between levels
+  without accumulating that drift.
+
+## Tools
+
+- [Browser tools](https://karhunen-loeve.github.io/tools/): pages that run the
+  library in the reader's own browser, compiled to WebAssembly, with no upload
+  and no network request after load.
+
+- [FAST corners](https://karhunen-loeve.github.io/tools/fast-corners.html):
+  the FAST segment test, interactive. Drop an image, move the threshold and the
+  arc length, click a detected corner and read the sixteen ring samples that
+  decided it.
+
+## Optional
+
+- [Atom feed](https://karhunen-loeve.github.io/feed.xml)
+- [fovea on crates.io](https://crates.io/crates/fovea) and
+  [on GitHub](https://github.com/karhunen-loeve/fovea): the library the posts
+  are about.
+- [fovea-examples](https://github.com/karhunen-loeve/fovea-examples): the
+  programs that generated the figures, so any number in the posts can be
+  reproduced.
