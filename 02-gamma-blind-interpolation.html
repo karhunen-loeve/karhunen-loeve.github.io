@@ -135,14 +135,11 @@
   .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
   .byline a { color: var(--accent); text-decoration: none; }
   .byline a:hover { text-decoration: underline; }
-  /* ---------- Fig. 1: the real pattern, at one square per device pixel ---------- */
-  .squint {
-    display: grid; grid-template-columns: minmax(0, 15rem) 1fr; gap: 1.1rem;
-    align-items: center; background: var(--surface);
-    border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem;
-  }
-  .squint canvas {
-    display: block; width: 100%; height: 9.5rem; border-radius: 6px;
+  /* ---------- Fig. 1: the same pattern, fine enough for the eye to average ---------- */
+  .fine-strip { margin-top: .75rem; }
+  .fine-strip canvas {
+    display: block; width: 100%; height: 4.5rem;
+    border: 1px solid var(--border); border-radius: 8px;
     image-rendering: pixelated;
     /* fallback for a browser that never runs the script: a CSS checkerboard at
        one CSS pixel per square, coarser than the canvas but honest */
@@ -153,14 +150,7 @@
     background-size: 2px 2px;
     background-color: #fff;
   }
-  .squint .cap { font: 500 .74rem/1.4 var(--mono); color: var(--muted); margin: .45rem 0 0; }
-  .squint .row { display: flex; align-items: center; gap: .8rem; }
-  .squint .row + .row { margin-top: .9rem; }
-  .squint .patch { width: 4.5rem; height: 3.2rem; border-radius: 6px; flex: none; }
-  .squint .row p { margin: 0; }
-  .squint .val { font: 600 .85rem/1.4 var(--mono); color: var(--ink); }
-  .squint .sub { font-size: .8rem; color: var(--ink-2); }
-  @media (max-width: 34rem) { .squint { grid-template-columns: 1fr; } }
+  .fine-strip .cap { font: 500 .74rem/1.4 var(--mono); color: var(--muted); margin: .4rem 0 0; }
 
   /* ---------- side-by-side raster figure and the try-it-yourself panel ---------- */
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; justify-items: center; }
@@ -380,29 +370,35 @@
 <p>You are downscaling a tiny image: a 2×2 checkerboard of pure black and pure white, shrinking to a single pixel. Physically, that pixel should emit exactly half the light of white, because it replaces an area that was half black, half white. What value do you store?</p>
 
 <figure>
-<div class="squint">
-  <div>
-    <canvas id="sq-fine" aria-label="A black and white checkerboard at one square per screen pixel, which the eye reads as a light gray."></canvas>
-    <p class="cap">half black, half white, one square per screen pixel</p>
-  </div>
-  <div>
-    <div class="row">
-      <div class="patch" style="background:rgb(128,128,128)"></div>
-      <div>
-        <p class="val">mean = 127.5 → 128</p>
-        <p class="sub">the byte average, and clearly not what you are looking at</p>
-      </div>
-    </div>
-    <div class="row">
-      <div class="patch" style="background:rgb(188,188,188)"></div>
-      <div>
-        <p class="val">average in light = 188</p>
-        <p class="sub">half of white&rsquo;s light, which is what your eye reports</p>
-      </div>
-    </div>
-  </div>
+<svg viewBox="0 0 680 250" role="img" aria-label="A black and white checkerboard downscaled two ways: naive byte averaging gives a dark gray of value 128; averaging in linear light gives the visually correct gray of value 188">
+  <!-- checkerboard -->
+  <g>
+    <rect x="50" y="45" width="130" height="130" fill="#ffffff" stroke="var(--border)"/>
+    <rect x="50" y="45" width="65" height="65" fill="#000000"/>
+    <rect x="115" y="110" width="65" height="65" fill="#000000"/>
+    <text x="115" y="200" text-anchor="middle" class="svg-ink2" font-size="13">50% black, 50% white</text>
+  </g>
+  <path d="M195 90 L275 70" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr2)"/>
+  <path d="M195 140 L275 160" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr2)"/>
+  <defs><marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+  <!-- naive -->
+  <g>
+    <rect x="290" y="40" width="90" height="70" rx="8" fill="rgb(128,128,128)"/>
+    <text x="395" y="65" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">mean = 127.5 → 128</tspan></text>
+    <text x="395" y="86" class="svg-ink2" font-size="13">naive byte average, clearly too dark</text>
+  </g>
+  <!-- correct -->
+  <g>
+    <rect x="290" y="130" width="90" height="70" rx="8" fill="rgb(188,188,188)"/>
+    <text x="395" y="155" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">average in light = 188</tspan></text>
+    <text x="395" y="176" class="svg-ink2" font-size="13">what half of white’s light actually looks like</text>
+  </g>
+</svg>
+<div class="fine-strip">
+  <canvas id="sq-fine" aria-label="The same 50/50 black and white pattern at one square per screen pixel, which the eye reads as a light gray."></canvas>
+  <p class="cap">the same pattern, one square per screen pixel</p>
 </div>
-<figcaption>Fig. 1. The squares are one screen pixel each, so your eye averages them for you. Hold that gray against the two candidates: it is not the byte average. Your eye averages <em>light</em>, and so does every camera lens; naive code averages <em>bytes</em>. (Zooming the page hands the pattern to the browser&rsquo;s resampler, which averages bytes and drags it back toward 128.)</figcaption>
+<figcaption>Fig. 1. The squares in the strip are one screen pixel each, so your eye averages them for you instead of resolving them. Compare that gray with the two swatches above: it is not the byte average. Your eye averages <em>light</em>, and so does every camera lens; naive code averages <em>bytes</em>. (Zooming the page hands the pattern to the browser&rsquo;s resampler, which averages bytes and drags it back toward 128.)</figcaption>
 </figure>
 
 <p>If your answer was 128, you are in excellent company: for years this was the default behavior of nearly every image library, browser, and game engine, and it is still the default in most computer-vision code today. It is also measurably, visibly wrong. The correct answer is <strong>188</strong>.</p>
