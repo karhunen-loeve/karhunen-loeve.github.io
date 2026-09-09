@@ -327,28 +327,51 @@
 <p>Your detector looks for a face 40 pixels wide. The face in the photo is 400 pixels wide. Nobody retrains the detector. You shrink the <em>image</em>: half size, quarter size, eighth size, and run the same detector on every level. Stack the levels and you get the data structure every vision textbook opens with:</p>
 
 <figure>
-<svg viewBox="0 0 680 300" role="img" aria-label="An image pyramid: four stacked levels of halving size, with the same detector box finding a large object only at the smallest level">
+<svg viewBox="0 0 680 512" role="img" aria-label="An image pyramid of four levels, each half the width and height of the one below it, drawn with a pixel grid so the halving is visible: 32 by 24 pixels, then 16 by 12, 8 by 6 and 4 by 3. A circular object sits in the middle of every level and shrinks with it. The same fixed-size detector box is drawn at every level; it is too small for the object at the bottom two levels, matches it at the third, and is larger than the object at the top.">
+  <defs>
+    <pattern id="px" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <!-- level 3: ⅛ : 4x3 pixels at ten units each -->
   <g>
-    <rect x="120" y="190" width="320" height="88" rx="6" fill="var(--fill-soft)" stroke="var(--border)"/>
-    <rect x="180" y="120" width="200" height="58" rx="5" fill="var(--fill-soft)" stroke="var(--border)"/>
-    <rect x="220" y="72"  width="120" height="36" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
-    <rect x="245" y="40"  width="70"  height="22" rx="3" fill="var(--fill-soft)" stroke="var(--border)"/>
-    <!-- the object: a circle that only fits the detector at level 2 -->
-    <circle cx="280" cy="234" r="34" fill="var(--accent)" opacity="0.85"/>
-    <circle cx="280" cy="149" r="21" fill="var(--accent)" opacity="0.85"/>
-    <circle cx="280" cy="90"  r="13" fill="var(--accent)" opacity="0.85"/>
-    <circle cx="280" cy="51"  r="8"  fill="var(--accent)" opacity="0.85"/>
-    <!-- detector box, fixed size, drawn at each level; fits at level 2 -->
-    <rect x="264" y="74" width="32" height="32" fill="none" stroke="var(--accent-2)" stroke-width="2.5" rx="3"/>
-    <text x="352" y="94" class="svg-ink2" font-size="12.5">fixed-size detector fits here ✓</text>
-    <!-- labels -->
-    <g class="svg-muted" font-size="12" text-anchor="end">
-      <text x="108" y="238">level 0: full</text>
-      <text x="168" y="153">level 1: ½</text>
-      <text x="208" y="94">level 2: ¼</text>
-      <text x="233" y="55">level 3: ⅛</text>
-    </g>
+    <rect x="320" y="10" width="40" height="30" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="340" cy="25" r="6.5" fill="var(--accent)" opacity="0.8"/>
+    <rect x="320" y="10" width="40" height="30" fill="url(#px)" stroke="var(--border)"/>
+    <rect x="327" y="12" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    <text x="308" y="29" text-anchor="end" class="svg-muted" font-size="12">level 3: ⅛</text>
+    <text x="372" y="29" class="svg-ink2" font-size="12.5">object smaller than the detector ✗</text>
   </g>
+  <!-- level 2: ¼ : 8x6 pixels at ten units each -->
+  <g>
+    <rect x="300" y="50" width="80" height="60" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="340" cy="80" r="13" fill="var(--accent)" opacity="0.8"/>
+    <rect x="300" y="50" width="80" height="60" fill="url(#px)" stroke="var(--border)"/>
+    <rect x="327" y="67" width="26" height="26" fill="none" stroke="var(--good)" stroke-width="2"/>
+    <text x="288" y="84" text-anchor="end" class="svg-muted" font-size="12">level 2: ¼</text>
+    <text x="392" y="84" class="svg-ink2" font-size="12.5">detector matches the object ✓</text>
+  </g>
+  <!-- level 1: ½ : 16x12 pixels at ten units each -->
+  <g>
+    <rect x="260" y="120" width="160" height="120" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="340" cy="180" r="26" fill="var(--accent)" opacity="0.8"/>
+    <rect x="260" y="120" width="160" height="120" fill="url(#px)" stroke="var(--border)"/>
+    <rect x="327" y="167" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    <text x="248" y="184" text-anchor="end" class="svg-muted" font-size="12">level 1: ½</text>
+    <text x="432" y="184" class="svg-ink2" font-size="12.5">object still too large ✗</text>
+  </g>
+  <!-- level 0: full : 32x24 pixels at ten units each -->
+  <g>
+    <rect x="180" y="250" width="320" height="240" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="340" cy="370" r="52" fill="var(--accent)" opacity="0.8"/>
+    <rect x="180" y="250" width="320" height="240" fill="url(#px)" stroke="var(--border)"/>
+    <rect x="327" y="357" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    <text x="168" y="374" text-anchor="end" class="svg-muted" font-size="12">level 0: full</text>
+    <text x="512" y="374" class="svg-ink2" font-size="12.5">object much too large ✗</text>
+  </g>
+  <text x="340" y="466" text-anchor="middle" class="svg-ink" font-size="12.5">the object you are looking for</text>
+  <text x="512" y="300" class="svg-ink2" font-size="12.5">the detector never</text>
+  <text x="512" y="318" class="svg-ink2" font-size="12.5">changes size: 26×26 px</text>
 </svg>
 <figcaption>Fig. 1. An image pyramid. The detector never changes size; the world does. Somewhere on the staircase, every object passes through the size your detector understands.</figcaption>
 </figure>
