@@ -525,9 +525,9 @@
 <p class="dek">Your camera says <em>blue-green-red</em>. Your model says <em>red-green-blue</em>. The bytes in between say nothing at all, and no one has to notice.</p>
 <p class="byline">Thomas Stephan · <time datetime="@@DATE1@@">@@HUMAN1@@</time> · <a href="/">Series index</a></p>
 
-<h2>Three bytes walk into an array</h2>
+<h2>The same three bytes, twice</h2>
 
-<p>Here is a pixel. Three bytes, honest and simple:</p>
+<p>Here is a pixel. Three bytes, and nothing else:</p>
 
 <figure>
 <svg viewBox="0 0 680 210" role="img" aria-label="The same three bytes 224, 172, 105 shown as a warm skin tone when read as RGB, and as light blue when read as BGR">
@@ -555,7 +555,7 @@
 <figcaption>Fig. 1. <code>[224, 172, 105]</code>. Interpreted as R-G-B, it is a warm skin tone. Interpreted as B-G-R, the red and blue channels trade places and the same bytes turn ice-blue. The memory is identical. Only the <em>meaning</em> changed.</figcaption>
 </figure>
 
-<p>Nothing in those three bytes says which channel comes first. The order is a <em>convention</em>, and computer vision has two common ones. Most of the world (PNG, JPEG decoders, browsers, GPUs, PyTorch, your screen) speaks RGB. OpenCV, the most-used vision library on Earth, decided in the early 2000s to store images as BGR, because the Windows bitmaps and cameras of that era did. Both conventions are fine. The bug lives in the handoff.</p>
+<p>Nothing in those three bytes says which channel comes first. The order is a <em>convention</em>, and computer vision has two common ones. Most of the world (PNG, JPEG decoders, browsers, GPUs, PyTorch, your screen) speaks RGB. OpenCV decided in the early 2000s to store images as BGR, because the Windows bitmaps and cameras of that era did. Both conventions are fine. The bug lives in the handoff.</p>
 
 <h2>The bug you have already written</h2>
 
@@ -585,21 +585,21 @@ plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span><
 <figcaption>Fig. 2. The same file, twice. Nothing was recomputed: the pixels were relabelled as BGR and then converted honestly for display. The centre of the face reads <code>[232, 178, 146]</code> in the file and arrives as <code>[146, 178, 232]</code> on screen. A human spots this in two seconds. In production, no human looks.</figcaption>
 </figure>
 
-<p>Now remove the human. Feed that swapped image into a neural network, a color-based blob detector, a skin-tone filter, a white-balance routine. None of them crash. None of them warn. They compute <em>confidently wrong answers</em>: a classifier trained on RGB quietly loses accuracy on BGR input, a "find the red marker" function finds blue markers, and nothing in any log file will ever tell you why.</p>
+<p>Now remove the human. Feed that swapped image into a neural network, a color-based blob detector, a skin-tone filter, a white-balance routine. None of them crash. None of them warn. They return answers that look exactly like correct ones: a classifier trained on RGB quietly loses accuracy on BGR input, a "find the red marker" function finds blue markers, and nothing in any log file will ever tell you why.</p>
 
 <p class="pull">A blue face on screen is a funny bug. A blue face inside a tensor is a silent one.</p>
 
 <h2>Why this keeps happening</h2>
 
-<p>Search any programming forum for <em>cvtColor BGR2RGB</em> and you will find thousands of hits: matplotlib displays, PIL round-trips, model inference gone quietly wrong, camera SDKs handing over BGRA buffers that got pasted into RGB pipelines. This bug is more than twenty years old, perfectly understood, and still written every day. Why?</p>
+<p>Search any programming forum for <em>cvtColor BGR2RGB</em> and you will find thousands of hits: matplotlib displays, PIL round-trips, model inference gone wrong, camera SDKs handing over BGRA buffers that got pasted into RGB pipelines. This bug is more than twenty years old, perfectly understood, and still written every day. Why?</p>
 
 <p>Because in almost every vision library, an image is just an array of numbers. A NumPy array of shape <code>(H, W, 3)</code>. A <code>cv::Mat</code> of type <code>CV_8UC3</code>. A bare pointer from a camera SDK. The channel order lives in documentation, in variable names, in the developer’s head, everywhere except in the data itself. The type system, the one tool that checks your assumptions on every single line, has been told nothing. It is color-blind, so it checks nothing.</p>
 
-<p>Notice what kind of bug this is. There is no flawed logic anywhere. Every function did exactly what it should. The mistake was that two parts of the program <em>disagreed about what the bytes meant</em>, and had no way to find out. That is not a logic bug. It is a <strong>type bug</strong>, forced to masquerade as a runtime mystery because the types were too weak to catch it.</p>
+<p>There is no flawed logic anywhere. Every function did exactly what it should. The mistake was that two parts of the program <em>disagreed about what the bytes meant</em>, and had no way to find out. That is not a logic bug. It is a <strong>type bug</strong>, forced to masquerade as a runtime mystery because the types were too weak to catch it.</p>
 
 <h2>Making the compiler care about channel order</h2>
 
-<p>Here is the same situation in <a href="https://crates.io/crates/fovea">fovea</a>, a Rust computer-vision library built on one principle: <em>every pixel knows what it is.</em> A BGR buffer from a camera SDK is not "an array you must remember things about." It is an <code>Image&lt;Bgr8&gt;</code>:</p>
+<p>Here is the same situation in <a href="https://crates.io/crates/fovea">fovea</a>, a Rust computer-vision library where the pixel type records its own layout. A BGR buffer from a camera SDK is an <code>Image&lt;Bgr8&gt;</code>, not an array you have to remember things about:</p>
 
 <pre><code><span class="kw">use</span> fovea::pixel::{<span class="ty">Bgr8</span>, <span class="ty">Rgb8</span>};
 <span class="kw">use</span> fovea::transform::{<span class="ty">ColorSwap</span>, convert_image};
@@ -613,7 +613,7 @@ plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span><
 detect_marker(&amp;frame);
 <span class="err">// error[E0308]: expected `&amp;Image&lt;Rgb8&gt;`, found `&amp;Image&lt;Bgr8&gt;`</span></code></pre>
 
-<p>The bug that used to hide inside a tensor now fails immediately, <em>before the program exists</em>. And the fix isn’t a magic incantation you paste from a forum. It is a conversion with a name, written where the conversion actually happens:</p>
+<p>The bug that used to hide inside a tensor now fails immediately, <em>before the program exists</em>. And the fix is a conversion with a name, written where the conversion actually happens:</p>
 
 <pre><code><span class="cmt">// Swap R ↔ B, on purpose, visibly, exactly once:</span>
 <span class="kw">let</span> rgb: Image&lt;<span class="ty">Rgb8</span>&gt; = convert_image(&amp;frame, <span class="ty">ColorSwap</span>);
@@ -624,7 +624,7 @@ detect_marker(&amp;rgb);   <span class="cmt">// ✓ compiles, and is actually co
 
 <h2>The stakes are going up</h2>
 
-<p>Computer vision is moving from demos into factories, vehicles, laboratories, and medical devices. At the same time, vision code is increasingly written by coding agents at a speed no human reviewer can match. Both trends point the same way: the class of bug that is <em>invisible in the data and absent from the logs</em> is exactly the class we can least afford. Channel order is the simplest possible example there is: one swap, two conventions. And it has cost the field twenty years of blue faces.</p>
+<p>Computer vision is moving from demos into factories, vehicles, laboratories, and medical devices. At the same time, vision code is increasingly written by coding agents at a speed no human reviewer can match. Both trends point the same way: the class of bug that is <em>invisible in the data and absent from the logs</em> is exactly the class we can least afford. Channel order is the simplest possible example there is: one swap, two conventions. And the field has still not managed to stop writing it.</p>
 
 <p>The fix is not more care. Care doesn’t scale. The fix is to write the meaning into the type, so that every mismatch (human-written or agent-written) dies at compile time, loudly, with a line number.</p>
 
