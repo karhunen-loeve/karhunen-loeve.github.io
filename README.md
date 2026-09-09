@@ -162,8 +162,34 @@ Two decisions are worth knowing before touching those pages:
    curl -sI https://karhunen-loeve.github.io/images/og-02.png | head -1
    gh api repos/karhunen-loeve/karhunen-loeve.github.io/pages --jq .custom_404
    ```
-7. **Announce, one post per week.** Lead with Part 2 (`128 Is Not the Middle`), the strongest standalone hook. r/rust → This Week in Rust → Hacker News →
-   lobste.rs → r/computervision.
+7. **Announce, one post per week.** Nothing about this is tied to the stamped
+   date: every page is reachable from the moment of the push, and none of the
+   channels below checks how old a link is. So one publication can carry weeks
+   of announcements. Lead with Part 2 (`128 Is Not the Middle`), the strongest
+   standalone hook.
+
+   Two kinds of channel, and only one of them can be staggered.
+
+   **Submitted by hand, one at a time, whenever you like:** r/rust, This Week
+   in Rust, Hacker News, lobste.rs, r/computervision. Each post has its own
+   URL and its own preview card, so each submission stands on its own. Use the
+   address in that page's `<link rel="canonical">` so the preview and any
+   later mention agree on one URL.
+
+   **Fed from `feed.xml`, so they arrive all at once:** the Atom subscribers,
+   and daily.dev, which onboards a source from its feed. Registering the feed
+   pulls in whatever it holds at that moment, which after publication is all
+   three posts on one date. Worth confirming when you set daily.dev up rather
+   than taking this on trust, but plan for the whole series landing there
+   together. It costs nothing: feed audiences are small and self-selected, and
+   the reach comes from the hand-submitted list above.
+
+   One thing has no way back. Once the feed has gone out with a date, do not
+   move `<published>` afterwards: the entry ids stay the same, and a
+   retroactively shifted date is exactly the kind of quiet wrongness the date
+   placeholders exist to prevent. If the series ever wants three separate
+   dates rather than three separate announcements, that has to be decided
+   before the publishing push, not after it.
 
 ## Custom domain
 
