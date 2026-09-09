@@ -570,6 +570,14 @@
   <path d="M68 20 L30 20 L30 335 L209 335" fill="none" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mapR)"/>
   <path d="M68 32 L14 32 L14 370 L228 370" fill="none" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mapG)"/>
 
+  <!-- the same naive doubling, one level at a time: the miss is 0.5 px in
+       level 2's own pixels, 1.5 in level 1's, 3.5 by the bottom -->
+  <path d="M101 71 L109 79 M109 71 L101 79" stroke="var(--bad)" stroke-width="2"/>
+  <text x="152" y="100" class="mono svg-muted" font-size="11.5">x · 2 → 0.5 px off</text>
+  <path d="M140 160 L150 170 M150 160 L140 170" stroke="var(--bad)" stroke-width="2"/>
+  <path d="M145 165 L160 180" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="232" y="200" class="mono svg-muted" font-size="11.5">x · 4 → 1.5 px off</text>
+
   <!-- where each map lands -->
   <path d="M218 328 L232 342 M232 328 L218 342" stroke="var(--bad)" stroke-width="2.5"/>
   <path d="M225 335 L260 370" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
@@ -581,7 +589,7 @@
   <text x="392" y="392" class="svg-muted" font-size="11.5">the half pixel per level is part of how</text>
   <text x="392" y="408" class="svg-muted" font-size="11.5">the level was built, not a rounding slip</text>
 </svg>
-<figcaption>Fig. 5. The object is found on level 3, where it fits the detector, and then has to be reported in full-resolution coordinates. Multiplying by 8 assumes the two pixel grids share their corners. If the level kept every second sample they do, and <code>x·8</code> is right. If it averaged 2×2 blocks, every coarse pixel centre sits half a pixel further in, and the honest map is <code>x·8&nbsp;+&nbsp;3.5</code>. Libraries disagree, few document which they do, and the error compounds by half a pixel per level.</figcaption>
+<figcaption>Fig. 5. The object is found on level 3, where it fits the detector, and then has to be reported in full-resolution coordinates. Multiplying by 8 assumes the two pixel grids share their corners. If the level kept every second sample they do, and <code>x·8</code> is right. If it averaged 2×2 blocks, every coarse pixel centre sits half a pixel further in, and the honest map is <code>x·8&nbsp;+&nbsp;3.5</code>. Libraries disagree, few document which they do, and the error compounds: half a pixel at the first step down, then 1.5, then 3.5, each measured in the pixels of the level it lands on.</figcaption>
 </figure>
 
 <p>If “half a pixel” sounds precious, consider that whole framework ecosystems fought a multi-year war over exactly this: the infamous <code>align_corners</code> flag, whose default was <a href="https://jricheimer.github.io/tensorflow/2019/02/11/resize-confusion/">wrong in TensorFlow 1</a> for years. The flag still means different things in different frameworks: with <code>align_corners=False</code>, coarse pixel <em>k</em> sits at <em>2k</em> in TensorFlow 1 and at <em>2k</em>&nbsp;+&nbsp;0.5 in PyTorch. Same name, same value, half a pixel apart. Sub-pixel keypoints, optical flow, stereo: the entire point of these algorithms is precision <em>below</em> one pixel. A convention mismatch eats the whole error budget before your algorithm even starts.</p>
