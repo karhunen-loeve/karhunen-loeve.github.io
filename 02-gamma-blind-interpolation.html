@@ -409,7 +409,7 @@
 </svg>
   <canvas id="sq-fine" aria-label="The same 50/50 black and white pattern at one square per screen pixel, which the eye reads as a light gray."></canvas>
 </div>
-<figcaption>Fig. 1. The third swatch is the same 50/50 pattern with one square per screen pixel, so your eye averages it instead of resolving it. Hold it against the two above: it is not the byte average. Your eye averages <em>light</em>, and so does every camera lens; naive code averages <em>bytes</em>. (Zooming the page hands the pattern to the browser&rsquo;s resampler, which averages bytes and drags it back toward 128.)</figcaption>
+<figcaption>Fig. 1. The third swatch is the same 50/50 pattern with one square per screen pixel, so your eye averages it instead of resolving it. Hold it against the two above: it is not the byte average. Your eye averages <em>light</em>, and so does every camera lens; naive code averages <em>bytes</em>.</figcaption>
 </figure>
 
 <p>If your answer was 128, you are in excellent company: for years this was the default behavior of nearly every image library, browser, and game engine, and it is still the default in most computer-vision code today. It is also measurably, visibly wrong. The correct answer is <strong>188</strong>.</p>
