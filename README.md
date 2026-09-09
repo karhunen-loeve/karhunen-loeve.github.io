@@ -11,6 +11,7 @@ SVG, no external assets) and can be opened straight from disk to proofread.
 | `02-gamma-blind-interpolation.html` | Part 2: 128 Is Not the Middle |
 | `03-pyramids-and-scale-space.html` | Part 3: Climbing the Pyramid |
 | `tools/` | Browser tools: computer vision running client-side on WebAssembly |
+| `404.html` | What Pages serves for any address that is not here |
 | `feed.xml` | Atom feed |
 | `images/` | The only external assets, currently just the portrait on `index.html` |
 | `.nojekyll` | Tells GitHub Pages to serve the files verbatim |
@@ -20,6 +21,35 @@ SVG, no external assets) and can be opened straight from disk to proofread.
 `tools/` holds pages that run `fovea` in the reader's browser. Every page in
 the site carries a left rail linking to them, themed from that page's own
 palette through its `--fv-*` variables.
+## Metadata
+
+Four things are worth knowing about because they are easy to break silently.
+
+**Preview cards.** Each page names a 1200x630 card in `images/og-*.png` and
+sets `twitter:card` to `summary_large_image`, so a link pasted into Mastodon,
+Slack or LinkedIn arrives as a card and not as a bare URL. The cards are
+generated, not drawn: one template with a per-page motif, kept in the private
+workspace. Re-rendering one means re-rendering it from there, since nothing in
+this repo can rebuild it.
+
+**Structured data.** A `application/ld+json` block per page: `BlogPosting` for
+the posts, `WebSite` plus `Blog` on the landing page, `CollectionPage` and
+`WebApplication` for the tools. This is the only description of the page a
+search engine or an assistant will parse rather than guess at. It repeats
+what the visible text already says, which means it can drift from it: if a
+title or a description changes, change it in both places.
+
+**The 404 page is served under the address that was missed,** not under
+`/404.html`. So every link in it, the generated rail included, has to start at
+the site root or it breaks for any missing address one directory down. That is
+why `add-rail.py` carries `up="/"` for this one page and a relative prefix for
+every other.
+
+**`llms.txt`** is a bet, not a standard. It is a 2024 convention for telling a
+language model in prose what a site is and which pages matter. No crawler is
+obliged to read it. It costs nothing to keep correct and nothing is lost if it
+is ignored.
+
 
 **The rail is generated too.** In every page it sits between
 `browser-tools rail: begin` and `browser-tools rail: end` markers, in both the
