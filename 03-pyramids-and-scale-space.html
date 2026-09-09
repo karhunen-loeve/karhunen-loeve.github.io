@@ -383,18 +383,18 @@
 <p>First trap, and a recurring question on every programming forum: take a 101-pixel-wide image down one level, then bring it back up.</p>
 
 <figure>
-<svg viewBox="0 0 680 250" role="img" aria-label="Downscaling 101 pixels gives 50, doubling back up gives 100, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
+<svg viewBox="0 0 680 250" role="img" aria-label="Downscaling 101 pixels gives 51, doubling back up gives 102, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
   <g font-size="14">
     <rect x="50"  y="60" width="202" height="70" rx="6" fill="var(--fill-soft)" stroke="var(--border)"/>
     <text x="151" y="100" text-anchor="middle" class="mono svg-ink">101 px</text>
     <path d="M262 95 L318 95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr3)"/>
     <text x="290" y="84" text-anchor="middle" class="svg-muted" font-size="11.5">÷2</text>
     <rect x="328" y="78" width="100" height="35" rx="5" fill="var(--fill-soft)" stroke="var(--border)"/>
-    <text x="378" y="101" text-anchor="middle" class="mono svg-ink">50 px</text>
+    <text x="378" y="101" text-anchor="middle" class="mono svg-ink">51 px</text>
     <path d="M438 95 L494 95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr3)"/>
     <text x="466" y="84" text-anchor="middle" class="svg-muted" font-size="11.5">×2</text>
     <rect x="504" y="60" width="150" height="70" rx="6" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="6 4"/>
-    <text x="579" y="100" text-anchor="middle" class="mono" fill="var(--bad)">100 px ≠ 101</text>
+    <text x="579" y="100" text-anchor="middle" class="mono" fill="var(--bad)">102 px ≠ 101</text>
   </g>
   <text x="340" y="180" text-anchor="middle" class="mono" fill="var(--bad)" font-size="13.5">error: (-209) sizes of input arguments do not match</text>
   <text x="340" y="208" text-anchor="middle" class="svg-ink2" font-size="12.5">…or worse: no error, and your difference image is silently misaligned.</text>
