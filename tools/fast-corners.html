@@ -599,6 +599,33 @@ result that you have to interpret: you get an error, because
 <script>
 // A classic script, not a module, for the same reason `fovea-wasm.js` is one:
 // Chrome refuses to load a module script into a page opened from disk.
+
+// That script publishes `FoveaWasm`. If it did not arrive, blocked by an
+// extension, dropped by a proxy, truncated in transit, then destructuring it
+// throws here and takes the whole rest of this file with it, sliders and all.
+// The reader was left with a dead panel and no idea why, so say it first and
+// then stop deliberately. `fail()` and `setLamp()` cannot help: they are
+// defined below and reach for consts that this throw prevents from existing.
+if (!window.FoveaWasm) {
+  const stage = document.getElementById("stage");
+  if (stage) {
+    const note = document.createElement("p");
+    note.className = "fail";
+    note.id = "failure";
+    note.textContent =
+      "fovea-wasm.js did not load, so there is no detector on this page and the " +
+      "controls below do nothing. Reloading usually fixes it. If it does not, " +
+      "something between this page and the server is dropping that file.";
+    stage.appendChild(note);
+  }
+  const lamp = document.getElementById("lamp");
+  if (lamp) {
+    lamp.dataset.state = "bad";
+    lamp.textContent = "module missing";
+  }
+  throw new Error("fovea-wasm.js did not load, so this page has no detector");
+}
+
 const { detectCorners, load } = window.FoveaWasm;
 
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
