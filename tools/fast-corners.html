@@ -765,7 +765,13 @@ const SAMPLES = [
   {
     name: "Portrait",
     note: "An inked portrait, loaded from this site. Hard line work is what the segment test likes: long arcs of one sign, and plenty of them.",
-    src: "../images/profile-comic.jpg",
+    // The lighter copy, not the master this and the figures in part 1 are cut
+    // from. Two thirds of the bytes for a difference of under one code value
+    // per channel. It is not free: JPEG ringing along inked lines invents
+    // corners, and this copy reports about 6 per cent more of them than the
+    // master. Enough of a reason not to compress it any harder; the same file
+    // at quality 90 reports a fifth more. Both figures are in images/CREDITS.md.
+    src: "../images/profile-comic-web.jpg",
   },
 ];
 
