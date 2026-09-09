@@ -663,7 +663,14 @@ const readout = {
 };
 
 /* ── state ─────────────────────────────────────────────────────────────── */
-const MAX_EDGE = 1400;
+// Detection is synchronous and holds the thread while it runs. At a 1400 px
+// edge that is 122 ms on the desktop this was built on and roughly six times
+// that on a mid-range phone, which is long enough that dragging a slider
+// queues one freeze behind the next. A narrow viewport therefore gets a
+// shorter edge: 800 px is a little over a third of the pixels, and still more
+// than a phone-width canvas can show. Read once, since changing it would only
+// take effect on the next image anyway.
+const MAX_EDGE = matchMedia("(max-width: 44rem)").matches ? 800 : 1400;
 let source = null;      // ImageData of the picture being examined
 let result = null;      // whatever the last detection returned
 let selected = -1;      // index of the inspected corner
