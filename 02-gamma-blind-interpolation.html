@@ -872,13 +872,12 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
 
 <p>One line of forum wisdom (“convert to linear before you blur”) has been repeated for twenty years and forgotten for twenty years. A type checker never forgets. As more vision code gets written by agents trained on those very tutorials, the difference between advice and a trait bound is that one of them is enforced.</p>
 
-<p>So far our bugs lived inside a single image. The final part climbs a whole stack of them: image pyramids and scale-space, where sizes stop matching, coordinates drift by half a pixel per level, and one library packed three numbers into one integer and called it an <code>octave</code>.</p>
+<p>So far our bugs lived inside a single image. The final part climbs a whole stack of them: image pyramids and scale-space, where sizes stop matching, coordinates drift by half a pixel per level, and one library packed three numbers into one integer and called it an <code>octave</code>. That part is still being finished; it follows shortly.</p>
 
 <div class="footer-nav">
   <strong>Type-Safe Computer Vision</strong>, a series about bugs the compiler could have caught:
   <a href="01-rgb-bgr-the-blue-face-bug.html">Part 1: The Blue Face Bug, RGB vs BGR</a> ·
-  Part 2: 128 Is Not the Middle ·
-  <a href="03-pyramids-and-scale-space.html">Part 3: Climbing the Pyramid, resolution, blur, and lost coordinates</a>
+  Part 2: 128 Is Not the Middle
   <br><br>
   <a href="/">Series index</a> · <a href="/feed.xml">Atom feed</a> · <a href="https://github.com/karhunen-loeve/fovea">fovea on GitHub</a>
 </div>

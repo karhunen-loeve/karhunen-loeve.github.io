@@ -27,12 +27,6 @@ attribute, and please do not reproduce the prose wholesale.
   others for two decades. The post measures the error on a real photograph and
   shows the type distinction that prevents it.
 
-- [Climbing the Pyramid](https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html):
-  Image pyramids and scale space. Odd sizes that stop round-tripping, the two
-  different things both called "scale", and coordinates that drift half a pixel
-  per level. Includes the arithmetic for mapping a coordinate between levels
-  without accumulating that drift.
-
 ## Tools
 
 - [Browser tools](https://karhunen-loeve.github.io/tools/): pages that run the

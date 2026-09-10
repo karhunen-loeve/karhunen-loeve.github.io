@@ -6,7 +6,7 @@
 
   <url>
     <loc>https://karhunen-loeve.github.io/</loc>
-    <lastmod>@@DATE3@@</lastmod>
+    <lastmod>@@DATE2@@</lastmod>
   </url>
 
   <url>
@@ -20,18 +20,13 @@
   </url>
 
   <url>
-    <loc>https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html</loc>
-    <lastmod>@@DATE3@@</lastmod>
-  </url>
-
-  <url>
     <loc>https://karhunen-loeve.github.io/tools/</loc>
-    <lastmod>@@DATE3@@</lastmod>
+    <lastmod>@@DATE2@@</lastmod>
   </url>
 
   <url>
     <loc>https://karhunen-loeve.github.io/tools/fast-corners.html</loc>
-    <lastmod>@@DATE3@@</lastmod>
+    <lastmod>@@DATE2@@</lastmod>
   </url>
 
 </urlset>
