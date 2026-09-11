@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Blue Face Bug: Why Your Pixels Lied About Their Colors</title>
+<meta name="description" content="Three bytes don't say which channel comes first. Read as RGB they're a skin tone; read as BGR, ice-blue. Why RGB/BGR confusion is a type bug, and how the compiler ends it.">
+<meta name="author" content="Thomas Stephan">
+<link rel="canonical" href="https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="alternate" type="application/atom+xml" href="/feed.xml" title="Type-Safe Computer Vision">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Type-Safe Computer Vision">
+<meta property="og:title" content="The Blue Face Bug: Why Your Pixels Lied About Their Colors">
+<meta property="og:description" content="Three bytes don't say which channel comes first. Read as RGB they're a skin tone; read as BGR, ice-blue. Why RGB/BGR confusion is a type bug, and how the compiler ends it.">
+<meta property="og:url" content="https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html">
+<meta property="og:image" content="https://karhunen-loeve.github.io/images/og-01.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Two colour swatches of the same three bytes: 239, 183, 147 read as RGB is a warm skin tone, and 147, 183, 239 read as BGR is ice blue.">
+<meta property="article:author" content="Thomas Stephan">
+<meta property="article:published_time" content="2026-09-11T12:00:00Z">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    color-scheme: dark;
+    /* The landing page palette, carried under the names this page already
+       uses, so every inline figure keeps working without being touched. */
+    --page:        #0b1418;
+    --surface:     #121e23;
+    --ink:         #edfffa;
+    --ink-2:       #b2d3cb;
+    --muted:       #82a49c;
+    --hairline:    #16302e;
+    --border:      rgba(87,255,207,0.16);
+    --accent:      #57ffcf;
+    --bad:         #ff8d8d;
+    --good:        #6ee7a8;
+    --code-bg:     #0e181c;
+    /* The generated tool rail maps its own variables onto these two names.
+       They are aliases of --surface and --muted above, and they have to
+       exist: var() without a fallback on an undefined property makes the
+       whole declaration invalid, which left the rail transparent. */
+    --panel:       #121e23;
+    --ink-3:       #82a49c;
+    /* the texture layers, same three as the landing page */
+    --g-fine:      #102526;
+    --g-mid:       #17383a;
+    --g-coarse:    #1e4a4c;
+    --grid-2:      #204f49;
+    --phos:        #57ffcf;
+    --phos-2:      #2ae0b1;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  /* ---------- the site texture, three fixed layers under the text ---------- */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--g-fine) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-fine) 1px, transparent 1px),
+      linear-gradient(var(--g-mid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-mid) 1px, transparent 1px),
+      linear-gradient(var(--g-coarse) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-coarse) 1px, transparent 1px);
+    background-size:
+      100% 16px, 16px 100%,
+      100% 64px, 64px 100%,
+      100% 256px, 256px 100%;
+    -webkit-mask: linear-gradient(#000 0 18%, rgba(0,0,0,.44) 70%, rgba(0,0,0,.36));
+            mask: linear-gradient(#000 0 18%, rgba(0,0,0,.44) 70%, rgba(0,0,0,.36));
+  }
+  #cells {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    width: 100%; height: 100%; display: block;
+    image-rendering: pixelated;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    opacity: .42;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- masthead, and a way back to the index ---------- */
+  .mast {
+    position: relative; z-index: 2;
+    max-width: 44rem; margin: 0 auto; padding: 1.5rem 1.25rem 1rem;
+    display: flex; align-items: baseline; gap: 1.1rem; flex-wrap: wrap;
+    border-bottom: 1px solid var(--hairline);
+    font: 600 .7rem/1 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .mast a.brand {
+    color: var(--phos); font-weight: 700; letter-spacing: .26em;
+    text-decoration: none; text-shadow: 0 0 16px rgba(87,255,207,.35);
+  }
+  .mast a.brand:hover { color: var(--ink); }
+  .mast .sp { flex: 1; }
+
+  article { position: relative; z-index: 2;
+            max-width: 44rem; margin: 0 auto; padding: 1.6rem 1.25rem 5rem; }
+  .kicker { color: var(--accent); font-weight: 600; font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font-size: 2.2rem; line-height: 1.15; margin: .4rem 0 0.6rem; letter-spacing: -0.02em; }
+  .dek { color: var(--ink-2); font-size: 1.15rem; margin: 0 0 2.5rem; }
+  h2 { font-size: 1.4rem; margin: 2.6rem 0 0.8rem; letter-spacing: -0.01em; }
+  p  { margin: 0 0 1.1rem; }
+  /* The drawings are laid out on a 680 unit canvas and their labels are 11 to
+     13 units tall. Let that canvas shrink to the width of a phone column and
+     the labels arrive at six pixels, which is not reading, it is guessing. So
+     below the width where they stay legible the drawing keeps its own size and
+     the figure pans sideways instead of shrinking. 38rem is the narrowest that
+     still holds the smallest label at ten pixels, and it is narrower than the
+     text column, so nothing above phone width changes.
+
+     The caption is a block child of the scroll box, so it takes the box width
+     rather than the drawing beside it, and pinning it to the left edge keeps
+     it still while the drawing slides underneath. */
+  figure { margin: 1.8rem 0; overflow-x: auto; overscroll-behavior-x: contain; }
+  figure svg { display: block; width: 100%; min-width: 38rem; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  figcaption { position: sticky; left: 0; color: var(--muted); font-size: .85rem; margin-top: .55rem; line-height: 1.5; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.6;
+  }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  p > code, li > code { background: var(--code-bg); border-radius: 4px; padding: .08em .35em; font-size: .85em; }
+  .cmt  { color: var(--muted); }
+  .kw   { color: var(--accent); font-weight: 600; }
+  .ty   { color: #5fd3a6; }
+  .err  { color: var(--bad); }
+  .pull {
+    border-left: 3px solid var(--accent); padding: .2rem 0 .2rem 1.1rem;
+    margin: 1.8rem 0; color: var(--ink-2); font-size: 1.12rem; font-style: italic;
+  }
+  .footer-nav { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--hairline); color: var(--muted); font-size: .85rem; }
+  .footer-nav a { color: var(--accent); text-decoration: none; }
+  .footer-nav a:hover { text-decoration: underline; }
+  .svg-ink   { fill: var(--ink); }
+  .svg-ink2  { fill: var(--ink-2); }
+  .svg-muted { fill: var(--muted); }
+  .svg-line  { stroke: var(--hairline); }
+  text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .dek { margin-bottom: 0.9rem; }
+  .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
+  .byline a { color: var(--accent); text-decoration: none; }
+  .byline a:hover { text-decoration: underline; }
+  /* ---------- side-by-side raster figure ---------- */
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; justify-items: center; }
+  .pair div { margin: 0; }
+  .pair img {
+    display: block; width: 100%; height: auto; max-width: 320px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  }
+  .pair .lbl {
+    font: 600 .75rem/1.4 var(--mono); letter-spacing: .04em;
+    margin: .4rem 0 0; color: var(--ink-2);
+  }
+  @media (max-width: 34rem) { .pair { grid-template-columns: 1fr; } }
+
+  /* ---------- print ---------- */
+  /* A browser leaves backgrounds out of a printout and keeps text colours,
+     and this palette is light ink on a dark ground. Printing part 2 gave a
+     PDF with 28 pure-white fills sitting on unmarked paper, so the page was
+     partly blank without ever saying so.
+
+     The fix is a palette rather than a stylesheet. Every rule on the page,
+     and every inline figure, already reads its colours from these names, so
+     redefining them turns the whole thing over at once, figures included.
+
+     The fixed texture layers and the tinted canvas go: an ornament made for
+     a screen is only toner on paper. The panning figures are let out of
+     their scroll box, since on paper a scroll box is a crop. */
+  @media print {
+    :root {
+      color-scheme: light;
+      --page: #fff; --surface: #fff; --ink: #000; --ink-2: #1a1a1a;
+      --muted: #444; --hairline: #b4b4b4; --border: #b4b4b4;
+      --accent: #00563f; --bad: #9b1c1c; --good: #14532d; --code-bg: #f5f5f5;
+      --panel: #fff; --ink-3: #444; --g-fine: transparent;
+      --g-mid: transparent; --g-coarse: transparent; --grid-2: #b4b4b4;
+      --phos: #00563f; --phos-2: #00563f;
+    }
+    body { padding-left: 0; }
+    body::before, body::after, #cells { display: none; }
+    figure { overflow: visible; }
+    figure svg { min-width: 0; }
+    figure, pre, table { break-inside: avoid; }
+  }
+  /* ── browser-tools rail ── begin ──────────────────────────────────────── */
+  :root { --fv-w: 15.5rem; }
+  .fv-rail, .fv-rail-toggle, .fv-skip {
+    --fv-bg: var(--panel);
+    --fv-ink: var(--ink);
+    --fv-ink-2: var(--ink-2);
+    --fv-muted: var(--ink-3);
+    --fv-line: var(--grid-2);
+    --fv-accent: var(--phos);
+    --fv-radius: 3px;
+    --fv-font: 500 .78rem/1.5 var(--mono);
+    --fv-mono: var(--mono);
+  }
+  .fv-rail {
+    position: fixed; z-index: 60; inset: 0 auto 0 0; width: var(--fv-w);
+    display: flex; flex-direction: column; gap: .85rem;
+    padding: 1.3rem 1rem 1.1rem;
+    background: var(--fv-bg); color: var(--fv-ink); font: var(--fv-font);
+    border-right: 1px solid var(--fv-line);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .fv-rail-kicker {
+    margin: 0; font: 700 .62rem/1 var(--fv-mono); letter-spacing: .18em;
+    text-transform: uppercase; color: var(--fv-muted);
+  }
+  .fv-rail-claim {
+    margin: 0; padding: .55rem .6rem; border-radius: var(--fv-radius);
+    border: 1px solid var(--fv-line);
+    font-size: .74rem; line-height: 1.5; color: var(--fv-ink-2);
+  }
+  .fv-rail-badge {
+    display: inline-block; margin-right: .4rem;
+    font: 700 .58rem/1 var(--fv-mono); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--fv-accent); border: 1px solid currentColor; border-radius: 99px;
+    padding: .2rem .42rem; vertical-align: .06em;
+  }
+  .fv-rail-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+  .fv-rail-item {
+    display: grid; grid-template-columns: 1.35rem 1fr; gap: .55rem; align-items: start;
+    padding: .5rem .55rem; border-radius: var(--fv-radius);
+    border: 1px solid transparent; text-decoration: none; color: inherit;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  a.fv-rail-item:hover, a.fv-rail-item:focus-visible {
+    border-color: var(--fv-accent); color: var(--fv-accent); outline: none;
+  }
+  a.fv-rail-item[aria-current="page"] { border-color: var(--fv-accent); color: var(--fv-accent); }
+  .fv-rail-item svg { width: 1.35rem; height: 1.35rem; display: block; margin-top: .1rem; }
+  .fv-rail-name { display: block; font-weight: 600; }
+  .fv-rail-desc { display: block; font-size: .71rem; line-height: 1.4; color: var(--fv-muted); margin-top: .1rem; }
+  .fv-rail-item.is-planned { color: var(--fv-muted); cursor: default; }
+  .fv-rail-item.is-planned .fv-rail-name { font-weight: 500; }
+  .fv-rail-soon {
+    font: 700 .55rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--fv-muted); border: 1px solid var(--fv-line); border-radius: 99px;
+    padding: .18rem .38rem; margin-left: .35rem; vertical-align: .1em;
+  }
+  .fv-rail-foot {
+    margin: auto 0 0; padding-top: .8rem; border-top: 1px solid var(--fv-line);
+    font-size: .69rem; line-height: 1.55; color: var(--fv-muted);
+  }
+  .fv-rail-foot a { color: inherit; }
+  .fv-rail-toggle {
+    position: fixed; z-index: 61; left: .7rem; bottom: .7rem;
+    display: none; align-items: center; gap: .45rem;
+    padding: .55rem .8rem; border-radius: 99px; cursor: pointer;
+    background: var(--fv-bg); color: var(--fv-ink);
+    border: 1px solid var(--fv-line);
+    font: 700 .68rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    box-shadow: 0 4px 18px rgba(0,0,0,.35);
+  }
+  .fv-rail-toggle svg { width: .95rem; height: .95rem; }
+  /* Sits above the page and drops into view only while it has focus, which
+     is the one moment it is any use. It is inserted as the first child of
+     the body, so it is the first thing a Tab reaches. */
+  .fv-skip {
+    position: fixed; z-index: 62; top: .6rem; left: .6rem;
+    transform: translateY(-180%); transition: transform .15s ease;
+    padding: .5rem .8rem; border-radius: var(--fv-radius);
+    background: var(--fv-accent); color: var(--fv-bg);
+    font: 700 .7rem/1 var(--fv-mono); letter-spacing: .1em;
+    text-transform: uppercase; text-decoration: none;
+  }
+  .fv-skip:focus { transform: none; }
+  body { padding-left: var(--fv-w); }
+  @media (max-width: 62rem) {
+    body { padding-left: 0; }
+    /* Pushed off screen the panel was still in the tab order, so three
+       invisible links sat between the toggle and the article and the caret
+       disappeared into them. `visibility` takes it out of the order as well.
+
+       The two directions need different timing, hence the pair of rules.
+       Going out, the switch waits for the slide to finish, or the panel would
+       vanish on the spot instead of leaving. Coming in it has to be immediate:
+       with the switch left to the transition it landed a frame late, and
+       focus() on a panel that is still hidden does nothing, silently, which is
+       exactly how the first version of this failed to move the caret. */
+    .fv-rail {
+      transform: translateX(-102%);
+      transition: transform .22s ease, visibility 0s linear .22s;
+      visibility: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,.45); width: min(19rem, 84vw);
+    }
+    .fv-rail.open {
+      transform: none; visibility: visible;
+      transition: transform .22s ease, visibility 0s;
+    }
+    .fv-rail-toggle { display: inline-flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fv-rail, .fv-skip { transition: none; }
+  }
+  /* None of this belongs on paper. The panel is fixed, so a printout carried
+     it across the first page on top of the text, and the toggle and the skip
+     link are both instructions for something a sheet of paper cannot do. */
+  @media print {
+    .fv-rail, .fv-rail-toggle, .fv-skip { display: none; }
+  }
+  /* ── browser-tools rail ── end ────────────────────────────────────────── */
+</style>
+<!-- Structured data, the one description of this page a machine is actually
+     going to parse. The visible text says the same things; this says them in
+     a shape a search engine or an assistant can act on, so the page is cited
+     as an article by a named author rather than as an anonymous URL.
+     The dates carry the same placeholders as everything else and are filled
+     by stamp-dates.ps1. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "@id": "https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html",
+  "url": "https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html",
+  "mainEntityOfPage": "https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html",
+  "headline": "The Blue Face Bug: Why Your Pixels Lied About Their Colors",
+  "description": "Three bytes in memory do not say which channel comes first. Read as RGB they are a warm skin tone; read as BGR they are ice blue. Why RGB/BGR confusion is a type bug.",
+  "image": "https://karhunen-loeve.github.io/images/og-01.png",
+  "inLanguage": "en",
+  "datePublished": "2026-09-11T12:00:00Z",
+  "dateModified": "2026-09-11T12:00:00Z",
+  "author": {
+    "@type": "Person",
+    "name": "Thomas Stephan",
+    "url": "https://github.com/karhunen-loeve"
+  },
+  "publisher": {
+    "@type": "Person",
+    "name": "Thomas Stephan",
+    "url": "https://github.com/karhunen-loeve"
+  },
+  "isPartOf": {
+    "@type": "Blog",
+    "@id": "https://karhunen-loeve.github.io/#blog",
+    "name": "Type-Safe Computer Vision",
+    "url": "https://karhunen-loeve.github.io/"
+  },
+  "position": 1,
+  "keywords": [
+    "computer vision",
+    "rust",
+    "type systems",
+    "image processing"
+  ]
+}
+</script>
+</head>
+<body>
+<canvas id="cells" aria-hidden="true"></canvas>
+<!-- browser-tools rail: begin -->
+<button class="fv-rail-toggle" type="button" aria-expanded="false" aria-controls="fv-rail">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+    <path d="M2 4h12M2 8h12M2 12h12"/>
+  </svg>
+  Tools
+</button>
+
+<nav class="fv-rail" id="fv-rail" aria-label="Browser tools">
+  <p class="fv-rail-kicker">Browser tools</p>
+  <p class="fv-rail-claim">
+    <span class="fv-rail-badge">wasm</span>
+    These run <strong>on your machine</strong>. The image you pick is decoded, measured and
+    drawn inside this tab. It is never uploaded, and the page makes no network request once
+    it has loaded.
+  </p>
+  <ul class="fv-rail-list">
+    <li>
+      <a class="fv-rail-item" href="tools/fast-corners.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M4 20V8l8-4 8 4v12"/><circle cx="12" cy="12" r="2.2"/>
+          <path d="M12 4v3.8M4 8l6 2.9M20 8l-6 2.9M12 14.2V20"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">FAST corners</span>
+          <span class="fv-rail-desc">Segment test, ranked and refined to sub-pixel</span>
+        </span>
+      </a>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">PNG chunks<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Every chunk, and which colour signal is missing</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M3 20C7 20 8 4 21 4"/><path d="M3 20h18"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">Gamma playground<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Resize in sRGB and in linear light, side by side</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">Resize weights<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">The tap table, and whose convention it matches</span>
+        </span>
+      </span>
+    </li>
+  </ul>
+  <p class="fv-rail-foot">
+    Powered by <a href="https://github.com/karhunen-loeve/fovea">fovea</a>, a type-safe computer
+    vision crate for Rust, compiled to WebAssembly.
+    <br><a href="tools/index.html">All tools</a>
+  </p>
+</nav>
+
+<script>
+(function () {
+  var rail = document.getElementById("fv-rail");
+  var btn = document.querySelector(".fv-rail-toggle");
+  if (!rail || !btn) return;
+
+  function set(open) {
+    rail.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+  }
+
+  btn.addEventListener("click", function () {
+    var open = !rail.classList.contains("open");
+    set(open);
+    // The toggle is reached by keyboard as often as by thumb, so send the
+    // caret where the panel is, and hand it back on the way out. Without
+    // that, closing leaves focus on a link that has just gone invisible.
+    //
+    // A frame later, not straight away: until the class change has been taken
+    // into account the panel is still hidden, and focus() on something hidden
+    // does nothing at all and reports nothing either. Measured going nowhere
+    // before this was added.
+    if (open) {
+      requestAnimationFrame(function () {
+        var first = rail.querySelector("a, button");
+        if (first) first.focus();
+      });
+    } else {
+      btn.focus();
+    }
+  });
+
+  // Escape, and a press anywhere outside. The panel covers the text it sits
+  // on, and reaching back to a button in the far corner to be rid of it is a
+  // chore on a phone.
+  addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && rail.classList.contains("open")) {
+      set(false);
+      btn.focus();
+    }
+  });
+  addEventListener("pointerdown", function (e) {
+    if (!rail.classList.contains("open")) return;
+    if (rail.contains(e.target) || btn.contains(e.target)) return;
+    set(false);
+  });
+
+  // The rail comes before the article in the source, so a keyboard and a
+  // screen reader both meet the tool list before the writing. Hence a skip
+  // link, built here rather than written into the markup: it needs a target,
+  // the target lives outside this block and is named differently on every
+  // page, and a skip link pointing at nothing is worse than no skip link.
+  // Built only once a target has actually been found, so it cannot be a dud.
+  //
+  // Waiting for the document, because this block sits at the top of the body
+  // and runs while the parser is still on its way to the article. Asking for
+  // it now finds nothing, which is how the first attempt shipped no link at
+  // all. With scripting off there is no link either, which is the honest
+  // outcome: there would be nothing to give it a target.
+  function skipLink() {
+    var main = document.querySelector("article, main");
+    if (!main || !document.body) return;
+    if (!main.id) main.id = "fv-content";
+    main.tabIndex = -1;
+    var skip = document.createElement("a");
+    skip.className = "fv-skip";
+    skip.href = "#" + main.id;
+    skip.textContent = "Skip to content";
+    document.body.insertBefore(skip, document.body.firstChild);
+  }
+  if (document.readyState === "loading") {
+    addEventListener("DOMContentLoaded", skipLink);
+  } else {
+    skipLink();
+  }
+})();
+</script>
+<!-- browser-tools rail: end -->
+<div class="mast">
+  <a class="brand" href="/">Karhunen-Loeve</a>
+  <span>type-safe computer vision</span>
+  <span class="sp"></span>
+  <span>part 01 of 3</span>
+</div>
+<article>
+
+<p class="kicker">Type-Safe Computer Vision · Part 1 of 3</p>
+<h1>The Blue Face Bug</h1>
+<p class="dek">Your camera says <em>blue-green-red</em>. Your model says <em>red-green-blue</em>. The bytes in between say nothing at all, and no one has to notice.</p>
+<p class="byline">Thomas Stephan · <time datetime="2026-09-11T12:00:00Z">11 September 2026</time> · <a href="/">Series index</a></p>
+
+<h2>The same three bytes, twice</h2>
+
+<p>Here is a pixel. Three bytes, and nothing else:</p>
+
+<figure>
+<svg viewBox="0 0 680 210" role="img" aria-label="The same three bytes 224, 172, 105 shown as a warm skin tone when read as RGB, and as light blue when read as BGR">
+  <text x="340" y="30" text-anchor="middle" class="svg-ink" font-size="15" font-weight="600">the same three bytes in memory</text>
+  <g class="mono" font-size="16">
+    <rect x="235" y="45" width="70" height="38" rx="6" fill="none" stroke="var(--hairline)" stroke-width="1.5"/>
+    <rect x="305" y="45" width="70" height="38" rx="6" fill="none" stroke="var(--hairline)" stroke-width="1.5"/>
+    <rect x="375" y="45" width="70" height="38" rx="6" fill="none" stroke="var(--hairline)" stroke-width="1.5"/>
+    <text x="270" y="69" text-anchor="middle" class="svg-ink">224</text>
+    <text x="340" y="69" text-anchor="middle" class="svg-ink">172</text>
+    <text x="410" y="69" text-anchor="middle" class="svg-ink">105</text>
+  </g>
+  <path d="M270 92 L150 122" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr1)"/>
+  <path d="M410 92 L530 122" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr1)"/>
+  <defs><marker id="arr1" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+  <g>
+    <rect x="60" y="130" width="180" height="52" rx="8" fill="rgb(224,172,105)"/>
+    <text x="150" y="200" text-anchor="middle" class="svg-ink2" font-size="13">read as <tspan class="mono" font-weight="600">RGB</tspan> → skin</text>
+  </g>
+  <g>
+    <rect x="440" y="130" width="180" height="52" rx="8" fill="rgb(105,172,224)"/>
+    <text x="530" y="200" text-anchor="middle" class="svg-ink2" font-size="13">read as <tspan class="mono" font-weight="600">BGR</tspan> → smurf</text>
+  </g>
+</svg>
+<figcaption>Fig. 1. <code>[224, 172, 105]</code>. Interpreted as R-G-B, it is a warm skin tone. Interpreted as B-G-R, the red and blue channels trade places and the same bytes turn ice-blue. The memory is identical. Only the <em>meaning</em> changed.</figcaption>
+</figure>
+
+<p>Nothing in those three bytes says which channel comes first. The order is a <em>convention</em>, and computer vision has two common ones. Most of the world (PNG, JPEG decoders, browsers, GPUs, PyTorch, your screen) speaks RGB. OpenCV decided in the early 2000s to store images as BGR, because the Windows bitmaps and cameras of that era did. Both conventions are fine. The bug lives in the handoff.</p>
+
+<h2>The bug you have already written</h2>
+
+<p>Every vision developer writes this program once:</p>
+
+<pre><code><span class="cmt"># load with OpenCV (returns BGR), show with matplotlib (expects RGB)</span>
+img = cv2.imread(<span class="ty">"portrait.jpg"</span>)
+plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span></code></pre>
+
+<p>And every vision developer gets lucky, because <em>this</em> version of the bug is loud. A blue face is obvious. You laugh, you add <code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</code>, you move on.</p>
+
+<figure>
+<div class="pair">
+  <div>
+    <img src="images/blue-face_rgb.png"
+         srcset="images/blue-face_rgb.png 1x, images/blue-face-480_rgb.png 1.5x" width="320" height="320"
+         alt="A comic-style portrait of the author with natural skin tones, a dark blue shirt and a cool grey stone wall behind him.">
+    <p class="lbl">what the file contains</p>
+  </div>
+  <div>
+    <img src="images/blue-face_bgr.png"
+         srcset="images/blue-face_bgr.png 1x, images/blue-face-480_bgr.png 1.5x" width="320" height="320"
+         alt="The identical bytes read as BGR: the face is cornflower blue, the shirt has turned rust brown and the grey wall has turned sandy yellow.">
+    <p class="lbl">what your code displayed</p>
+  </div>
+</div>
+<figcaption>Fig. 2. The same file, twice. Nothing was recomputed: the pixels were relabelled as BGR and then converted honestly for display. The centre of the face reads <code>[232, 178, 146]</code> in the file and arrives as <code>[146, 178, 232]</code> on screen. A human spots this in two seconds. In production, no human looks.</figcaption>
+</figure>
+
+<p>Now remove the human. Feed that swapped image into a neural network, a color-based blob detector, a skin-tone filter, a white-balance routine. None of them crash. None of them warn. They return answers that look exactly like correct ones: a classifier trained on RGB quietly loses accuracy on BGR input, a "find the red marker" function finds blue markers, and nothing in any log file will ever tell you why.</p>
+
+<p class="pull">A blue face on screen is a funny bug. A blue face inside a tensor is a silent one.</p>
+
+<h2>Why this keeps happening</h2>
+
+<p>Search any programming forum for <em>cvtColor BGR2RGB</em> and you will find thousands of hits: matplotlib displays, PIL round-trips, model inference gone wrong, camera SDKs handing over BGRA buffers that got pasted into RGB pipelines. This bug is more than twenty years old, perfectly understood, and still written every day. Why?</p>
+
+<p>Because in almost every vision library, an image is just an array of numbers. A NumPy array of shape <code>(H, W, 3)</code>. A <code>cv::Mat</code> of type <code>CV_8UC3</code>. A bare pointer from a camera SDK. The channel order lives in documentation, in variable names, in the developer’s head, everywhere except in the data itself. The type system, the one tool that checks your assumptions on every single line, has been told nothing. It is color-blind, so it checks nothing.</p>
+
+<p>There is no flawed logic anywhere. Every function did exactly what it should. The mistake was that two parts of the program <em>disagreed about what the bytes meant</em>, and had no way to find out. That is not a logic bug. It is a <strong>type bug</strong>, forced to masquerade as a runtime mystery because the types were too weak to catch it.</p>
+
+<h2>Making the compiler care about channel order</h2>
+
+<p>Here is the same situation in <a href="https://crates.io/crates/fovea">fovea</a>, a Rust computer-vision library where the pixel type records its own layout. A BGR buffer from a camera SDK is an <code>Image&lt;Bgr8&gt;</code>, not an array you have to remember things about:</p>
+
+<pre><code><span class="kw">use</span> fovea::pixel::{<span class="ty">Bgr8</span>, <span class="ty">Rgb8</span>};
+<span class="kw">use</span> fovea::transform::{<span class="ty">ColorSwap</span>, convert_image};
+
+<span class="cmt">// The camera SDK documents its buffer as BGR, expressed in the type.</span>
+<span class="kw">let</span> frame: Image&lt;<span class="ty">Bgr8</span>&gt; = Image::from_raw_bytes(w, h, sdk_buffer)?;
+
+<span class="cmt">// A function that needs RGB *says* it needs RGB:</span>
+<span class="kw">fn</span> detect_marker(img: &amp;Image&lt;<span class="ty">Rgb8</span>&gt;) -&gt; Option&lt;Point&gt; { <span class="cmt">/* … */</span> }
+
+detect_marker(&amp;frame);
+<span class="err">// error[E0308]: expected `&amp;Image&lt;Rgb8&gt;`, found `&amp;Image&lt;Bgr8&gt;`</span></code></pre>
+
+<p>The bug that used to hide inside a tensor now fails immediately, <em>before the program exists</em>. And the fix is a conversion with a name, written where the conversion actually happens:</p>
+
+<pre><code><span class="cmt">// Swap R ↔ B, on purpose, visibly, exactly once:</span>
+<span class="kw">let</span> rgb: Image&lt;<span class="ty">Rgb8</span>&gt; = convert_image(&amp;frame, <span class="ty">ColorSwap</span>);
+
+detect_marker(&amp;rgb);   <span class="cmt">// ✓ compiles, and is actually correct</span></code></pre>
+
+<p>Two details matter here. First, <code>Bgr8</code> and <code>Rgb8</code> have <em>identical memory layouts</em>: three bytes, no padding. The wrapper costs nothing at runtime; taking the SDK’s buffer is zero-copy. The only thing that changed is that the meaning of the bytes is now written down where the compiler can read it. Second, the conversion is <em>named</em>. Six months from now, <code>ColorSwap</code> in a diff tells you precisely what crossed the boundary and why. A silent reinterpretation never can.</p>
+
+<h2>The stakes are going up</h2>
+
+<p>Computer vision is moving from demos into factories, vehicles, laboratories, and medical devices. At the same time, vision code is increasingly written by coding agents at a speed no human reviewer can match. Both trends point the same way: the class of bug that is <em>invisible in the data and absent from the logs</em> is exactly the class we can least afford. Channel order is the simplest possible example there is: one swap, two conventions. And the field has still not managed to stop writing it.</p>
+
+<p>The fix is not more care. Care doesn’t scale. The fix is to write the meaning into the type, so that every mismatch (human-written or agent-written) dies at compile time, loudly, with a line number.</p>
+
+<p>Next up: a bug that is subtler than a blue face, hides in nearly every resize call ever written, and makes your images physically wrong in a way most people have stared at for years without seeing. It involves the number 128, which turns out not to be the middle of anything.</p>
+
+<div class="footer-nav">
+  <strong>Type-Safe Computer Vision</strong>, a series about bugs the compiler could have caught:
+  Part 1: The Blue Face Bug ·
+  <a href="02-gamma-blind-interpolation.html">Part 2: 128 Is Not the Middle, gamma and interpolation</a>
+  <br><br>
+  <a href="/">Series index</a> · <a href="/feed.xml">Atom feed</a> · <a href="https://github.com/karhunen-loeve/fovea">fovea on GitHub</a>
+</div>
+
+</article>
+<script>
+/* ---------------------------------------------------------------------------
+   A few cells of the grid, tinted.
+
+   Three things keep it from looking machine-made. The tinting is multi-scale,
+   like the grid it sits on: mostly 16 px cells, some 32, rarely a 64 px block,
+   each fainter as it gets larger. Every cell's alpha is drawn from a range
+   rather than fixed. And the probability of a cell being tinted is modulated
+   by a slow lumpy field, so the cells clump and leave bare patches instead of
+   scattering evenly - an even scatter is what reads as wallpaper.
+
+   The seed is fixed and the lattice is anchored to the viewport, so which
+   cells exist never changes and the grid does not move when you scroll. The
+   fill is inset by a pixel, so the grid lines underneath survive.
+
+   Nothing is tinted where you read. The text boxes are measured in the DOM and
+   every cell's alpha is scaled by its clearance from the nearest one, with a
+   100 px shoulder. Since the layer is fixed and the text is not, that clearance
+   changes as you scroll: a cell fades out as a paragraph arrives and fades
+   back in once it has passed. The texture reacts to what is on top of it.
+--------------------------------------------------------------------------- */
+(function () {
+  var cv = document.getElementById('cells');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // A coloured tint on a dark ground has no middle setting: too faint and it
+  // is merely "a bit lighter", too strong and it is a flat block. So the
+  // cells are sparse and properly coloured rather than many and muddy.
+  //
+  // k is a per-colour gain. Amber is a warm hue on a cold ground, so at the
+  // alpha the others use it turns olive-brown; it is the rarest of the three
+  // and gets to be stronger when it does appear.
+  var COLS = [
+    { c: '87,255,207',  w: .58, k: 1.00 },   // mint
+    { c: '192,168,255', w: .30, k: 1.15 },   // violet
+    { c: '255,193,102', w: .12, k: 1.90 }    // amber
+  ];
+  var LEVELS = [
+    { cell: 16, p: .0145, lo: .055, hi: .150 },
+    { cell: 32, p: .0040, lo: .035, hi: .085 },
+    { cell: 64, p: .0012, lo: .020, hi: .045 }
+  ];
+
+  function lump(x, y) {
+    return 0.5 + 0.5 * (
+      0.55 * Math.sin(x / 260 + 1.3) * Math.cos(y / 310 - 0.7) +
+      0.30 * Math.sin(x /  95 - 2.1) * Math.cos(y / 130 + 1.9) +
+      0.15 * Math.sin((x + y) / 170)
+    );
+  }
+
+  // Every block whose text sits straight on the background. Cards are absent
+  // on purpose: their panel is opaque, so it hides the tint behind it anyway.
+  var READ = ['.mast', 'article > *', 'article li'];
+  var FEATHER = 100;  // px of soft shoulder around each block. It doubles as
+                      // the length over which a cell fades as you scroll past
+                      // it, which is why it is this wide: at 44 px a cell went
+                      // from nothing to full inside a single wheel step, and
+                      // that reads as a blink rather than a fade. Widening it
+                      // costs about 8 per cent of the cells.
+  var QUIET = 0;      // what survives under the text; raise it to keep a trace
+  var SCALE = 2;      // one canvas pixel per two CSS pixels
+
+  // The text boxes are held in DOCUMENT coordinates and measured only when the
+  // layout can have changed. Reading 21 rects on every scroll frame would
+  // force a layout each time; subtracting the scroll offset costs nothing.
+  var boxes = [];
+
+  function measure() {
+    var sx = scrollX, sy = scrollY;
+    boxes = [];
+    for (var i = 0; i < READ.length; i++) {
+      var els = document.querySelectorAll(READ[i]);
+      for (var j = 0; j < els.length; j++) {
+        var r = els[j].getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        boxes.push({ l: r.left + sx, t: r.top + sy, r: r.right + sx, b: r.bottom + sy });
+      }
+    }
+  }
+
+  // Clearance from the cell's whole rectangle, not from its centre. A 64 px
+  // cell can have a centre well clear of a paragraph and still cover its
+  // first two lines; measuring the centre let exactly that through.
+  function damp(cl, ct, cr, cb, sx, sy) {
+    var best = Infinity;
+    for (var i = 0; i < boxes.length; i++) {
+      var q = boxes[i];
+      var ql = q.l - sx, qt = q.t - sy, qr = q.r - sx, qb = q.b - sy;
+      var dx = cl > qr ? cl - qr : (ql > cr ? ql - cr : 0);
+      var dy = ct > qb ? ct - qb : (qt > cb ? qt - cb : 0);
+      var d = dx && dy ? Math.sqrt(dx * dx + dy * dy) : (dx || dy);
+      if (d < best) { best = d; if (best === 0) return QUIET; }
+    }
+    if (best >= FEATHER) return 1;
+    var t = best / FEATHER;
+    return QUIET + (1 - QUIET) * (t * t * (3 - 2 * t));   // smoothstep
+  }
+
+  // A slow, per-cell brightness wobble driven by the scroll position.
+  //
+  // The phase and the rate come from a position hash rather than from the
+  // PRNG: drawing them from the stream would shift every later draw and
+  // rearrange the whole pattern. Each cell therefore keeps its own phase for
+  // good, and neighbours drift apart instead of breathing in unison.
+  //
+  // It is a function of the scroll offset and nothing else, so it holds still
+  // the moment you stop scrolling. Nothing here animates on its own.
+  var WOBBLE = .26;    // peak deviation, so roughly plus or minus a quarter
+  var PITCH = 1200;    // px of scroll for one cycle, before the per-cell rate.
+                       // Deep and slow: the two together set how fast it
+                       // changes as you scroll, and that rate is WOBBLE/PITCH,
+                       // so the longer pitch more than cancels the bigger
+                       // amplitude. Over a short scroll it is calmer than
+                       // before; over a long one the swing is wider.
+
+  function hash(x, y, k) {
+    var h = Math.sin(x * 12.9898 + y * 78.233 + k * 37.719) * 43758.5453;
+    return h - Math.floor(h);
+  }
+
+  function wobble(x, y, sy) {
+    var phase = hash(x, y, 1) * 6.2831853;
+    var rate = 0.7 + hash(x, y, 2) * 0.7;          // 0.7x to 1.4x the pitch
+    return 1 + WOBBLE * Math.sin(sy / (PITCH * rate) * 6.2831853 + phase);
+  }
+
+  function pick(r) {
+    var acc = 0;
+    for (var i = 0; i < COLS.length; i++) { acc += COLS[i].w; if (r <= acc) return COLS[i]; }
+    return COLS[0];
+  }
+
+  function draw() {
+    var box = cv.getBoundingClientRect();
+    var CW = Math.max(1, Math.round(box.width)), CH = Math.max(1, Math.round(box.height));
+    var bw = Math.ceil(CW / SCALE), bh = Math.ceil(CH / SCALE);
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    ctx.clearRect(0, 0, bw, bh);
+
+    // The lattice, the clumping field and the seed are all anchored to the
+    // viewport, so which cells exist never changes. Only how much of each one
+    // survives does, and that is what the scrolling text decides.
+    var sx = scrollX, sy = scrollY;
+    var rnd = mulberry32(0x5eed1a17);
+
+    for (var L = 0; L < LEVELS.length; L++) {
+      var lv = LEVELS[L], c = lv.cell / SCALE;
+      for (var y = 0; y < CH; y += lv.cell) {
+        for (var x = 0; x < CW; x += lv.cell) {
+          if (rnd() > lv.p * (0.15 + 2.3 * lump(x, y))) continue;
+          var a = lv.lo + rnd() * (lv.hi - lv.lo);
+          var col = pick(rnd());
+          var g = damp(x, y, x + lv.cell, y + lv.cell, sx, sy);
+          if (g < .04) continue;
+          // ceiling tracks the wobble so the peaks are not clipped:
+          // the brightest amber reaches .285 x 1.26
+          var alpha = Math.min(.36, a * col.k * g * wobble(x, y, sy));
+          ctx.fillStyle = 'rgba(' + col.c + ',' + alpha.toFixed(3) + ')';
+          ctx.fillRect(x / SCALE + 1, y / SCALE + 1, c - 2, c - 2);
+        }
+      }
+    }
+  }
+
+  measure();
+  draw();
+
+  // That first measurement runs while the page can still grow: images and
+  // fonts are not in yet, and a panel that ships as `hidden` only appears when
+  // its own script runs. Any later change in height moves the text away from
+  // the holes cut for it, which shows up as background cells sitting behind
+  // paragraphs further down the page. So measure again whenever the document
+  // can have changed size. Re-measuring only paints, it never reflows, so
+  // observing the body cannot feed itself.
+  function remeasure() { measure(); draw(); }
+  addEventListener('load', remeasure);
+  if (window.ResizeObserver && document.body) {
+    var rt = null;
+    new ResizeObserver(function () {
+      clearTimeout(rt);
+      rt = setTimeout(remeasure, 80);
+    }).observe(document.body);
+  }
+
+  var queued = false;
+  addEventListener('scroll', function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; draw(); });
+  }, { passive: true });
+
+  var t = null;
+  addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(function () { measure(); draw(); }, 150);
+  });
+})();
+</script>
+</body>
+</html>

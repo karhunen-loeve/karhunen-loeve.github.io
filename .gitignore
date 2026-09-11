@@ -1,0 +1,4 @@
+# Full-size source photographs for the generated figures. They are large
+# (tens of MB), they are never served, and every one of them is re-downloadable
+# from the source recorded in images/CREDITS.md.
+images/originals/

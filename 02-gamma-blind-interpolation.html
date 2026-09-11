@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>128 Is Not the Middle: Gamma, Interpolation, and the Bug in Every Resize</title>
+<meta name="description" content="Average black and white and you get 128. The correct answer is 188. Gamma-encoded pixels break every naive resize, blur, and blend. The fix belongs in the type system.">
+<meta name="author" content="Thomas Stephan">
+<link rel="canonical" href="https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="alternate" type="application/atom+xml" href="/feed.xml" title="Type-Safe Computer Vision">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Type-Safe Computer Vision">
+<meta property="og:title" content="128 Is Not the Middle: Gamma, Interpolation, and the Bug in Every Resize">
+<meta property="og:description" content="Average black and white and you get 128. The correct answer is 188. Gamma-encoded pixels break every naive resize, blur, and blend. The fix belongs in the type system.">
+<meta property="og:url" content="https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html">
+<meta property="og:image" content="https://karhunen-loeve.github.io/images/og-02.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="128 struck through, an arrow, then 188: the average of black and white measured in light rather than in stored bytes.">
+<meta property="article:author" content="Thomas Stephan">
+<meta property="article:published_time" content="2026-09-11T12:00:00Z">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    color-scheme: dark;
+    /* The landing page palette, carried under the names this page already
+       uses, so every inline figure keeps working without being touched. */
+    --page:        #0b1418;
+    --surface:     #121e23;
+    --ink:         #edfffa;
+    --ink-2:       #b2d3cb;
+    --muted:       #82a49c;
+    --hairline:    #16302e;
+    --border:      rgba(87,255,207,0.16);
+    --accent:      #57ffcf;
+    --bad:         #ff8d8d;
+    --good:        #6ee7a8;
+    --code-bg:     #0e181c;
+    /* The generated tool rail maps its own variables onto these two names.
+       They are aliases of --surface and --muted above, and they have to
+       exist: var() without a fallback on an undefined property makes the
+       whole declaration invalid, which left the rail transparent. */
+    --panel:       #121e23;
+    --ink-3:       #82a49c;
+    /* the texture layers, same three as the landing page */
+    --g-fine:      #102526;
+    --g-mid:       #17383a;
+    --g-coarse:    #1e4a4c;
+    --grid-2:      #204f49;
+    --phos:        #57ffcf;
+    --phos-2:      #2ae0b1;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  /* ---------- the site texture, three fixed layers under the text ---------- */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--g-fine) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-fine) 1px, transparent 1px),
+      linear-gradient(var(--g-mid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-mid) 1px, transparent 1px),
+      linear-gradient(var(--g-coarse) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-coarse) 1px, transparent 1px);
+    background-size:
+      100% 16px, 16px 100%,
+      100% 64px, 64px 100%,
+      100% 256px, 256px 100%;
+    -webkit-mask: linear-gradient(#000 0 18%, rgba(0,0,0,.44) 70%, rgba(0,0,0,.36));
+            mask: linear-gradient(#000 0 18%, rgba(0,0,0,.44) 70%, rgba(0,0,0,.36));
+  }
+  #cells {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    width: 100%; height: 100%; display: block;
+    image-rendering: pixelated;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    opacity: .42;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- masthead, and a way back to the index ---------- */
+  .mast {
+    position: relative; z-index: 2;
+    max-width: 44rem; margin: 0 auto; padding: 1.5rem 1.25rem 1rem;
+    display: flex; align-items: baseline; gap: 1.1rem; flex-wrap: wrap;
+    border-bottom: 1px solid var(--hairline);
+    font: 600 .7rem/1 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .mast a.brand {
+    color: var(--phos); font-weight: 700; letter-spacing: .26em;
+    text-decoration: none; text-shadow: 0 0 16px rgba(87,255,207,.35);
+  }
+  .mast a.brand:hover { color: var(--ink); }
+  .mast .sp { flex: 1; }
+
+  article { position: relative; z-index: 2;
+            max-width: 44rem; margin: 0 auto; padding: 1.6rem 1.25rem 5rem; }
+  .kicker { color: var(--accent); font-weight: 600; font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font-size: 2.2rem; line-height: 1.15; margin: .4rem 0 0.6rem; letter-spacing: -0.02em; }
+  .dek { color: var(--ink-2); font-size: 1.15rem; margin: 0 0 2.5rem; }
+  h2 { font-size: 1.4rem; margin: 2.6rem 0 0.8rem; letter-spacing: -0.01em; }
+  p  { margin: 0 0 1.1rem; }
+  /* The drawings are laid out on a 680 unit canvas and their labels are 11 to
+     13 units tall. Let that canvas shrink to the width of a phone column and
+     the labels arrive at six pixels, which is not reading, it is guessing. So
+     below the width where they stay legible the drawing keeps its own size and
+     the figure pans sideways instead of shrinking. 38rem is the narrowest that
+     still holds the smallest label at ten pixels, and it is narrower than the
+     text column, so nothing above phone width changes.
+
+     The caption is a block child of the scroll box, so it takes the box width
+     rather than the drawing beside it, and pinning it to the left edge keeps
+     it still while the drawing slides underneath. */
+  figure { margin: 1.8rem 0; overflow-x: auto; overscroll-behavior-x: contain; }
+  figure svg { display: block; width: 100%; min-width: 38rem; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  figcaption { position: sticky; left: 0; color: var(--muted); font-size: .85rem; margin-top: .55rem; line-height: 1.5; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.6;
+  }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  p > code, li > code { background: var(--code-bg); border-radius: 4px; padding: .08em .35em; font-size: .85em; }
+  .cmt  { color: var(--muted); }
+  .kw   { color: var(--accent); font-weight: 600; }
+  .ty   { color: #5fd3a6; }
+  .err  { color: var(--bad); }
+  .pull {
+    border-left: 3px solid var(--accent); padding: .2rem 0 .2rem 1.1rem;
+    margin: 1.8rem 0; color: var(--ink-2); font-size: 1.12rem; font-style: italic;
+  }
+  .footer-nav { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--hairline); color: var(--muted); font-size: .85rem; }
+  .footer-nav a { color: var(--accent); text-decoration: none; }
+  .footer-nav a:hover { text-decoration: underline; }
+  .svg-ink   { fill: var(--ink); }
+  .svg-ink2  { fill: var(--ink-2); }
+  .svg-muted { fill: var(--muted); }
+  text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .dek { margin-bottom: 0.9rem; }
+  .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
+  .byline a { color: var(--accent); text-decoration: none; }
+  .byline a:hover { text-decoration: underline; }
+  /* ---------- Fig. 1: a canvas placed inside the diagram, as its third row ----------
+     The SVG scales to the column width and keeps its aspect ratio, so the
+     wrapper's box is the SVG's box and percentages of the one are percentages
+     of the other. That is what lets a real canvas sit exactly under the 188
+     swatch without hard-coding a pixel size. */
+  .fig1 { position: relative; }
+  .fig1 canvas {
+    position: absolute;
+    /* rect x=290..380, y=215..285 of the 680x330 viewBox */
+    left: 42.647%; top: 65.152%;
+    border-radius: 6px;
+    image-rendering: pixelated;
+    /* fallback for a browser that never runs the script: a CSS checkerboard at
+       one CSS pixel per square, coarser than the canvas but honest */
+    width: 13.235%; height: 21.212%;
+    background-image:
+      linear-gradient(45deg, #000 25%, transparent 0 75%, #000 0),
+      linear-gradient(45deg, #000 25%, transparent 0 75%, #000 0);
+    background-position: 0 0, 1px 1px;
+    background-size: 2px 2px;
+    background-color: #fff;
+  }
+
+  /* ---------- side-by-side raster figure and the try-it-yourself panel ---------- */
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; justify-items: center; }
+  .pair figure, .pair div { margin: 0; }
+  .pair img, .pair canvas {
+    /* never scaled up past its own pixels: this figure is about what happens
+       to fine detail, so resampling it again in the browser would be absurd */
+    display: block; width: 100%; height: auto; max-width: 320px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+    image-rendering: auto;
+  }
+  .pair .lbl {
+    font: 600 .75rem/1.4 var(--mono); letter-spacing: .04em;
+    margin: .4rem 0 0; color: var(--ink-2);
+  }
+  .pair .lbl .num { color: var(--muted); font-weight: 500; letter-spacing: 0; }
+  .credit { display: block; color: var(--muted); font-size: .78rem; margin-top: .5rem; }
+  .credit a { color: var(--muted); }
+  .tryit {
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; margin: 1.8rem 0; background: var(--surface);
+  }
+  .tryit > h3 { margin: 0 0 .5rem; font-size: 1rem; }
+  .tryit p { font-size: .9rem; color: var(--ink-2); }
+  /* the same button the tool pages use, so the panel does not look like a
+     browser dialog dropped into the article */
+  .tryit .btn {
+    font: 600 .8rem/1 system-ui, sans-serif;
+    border: 1px solid var(--border); border-radius: 7px;
+    background: var(--code-bg); color: var(--ink);
+    padding: .5rem .8rem; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .tryit .btn:hover { border-color: var(--accent); color: var(--accent); }
+  /* the native control keeps the keyboard behaviour and gives up the looks */
+  .tryit input[type=file] {
+    position: absolute; width: 1px; height: 1px; padding: 0;
+    opacity: 0; overflow: hidden; white-space: nowrap;
+  }
+  .tryit input[type=file]:focus-visible + .btn { border-color: var(--accent); color: var(--accent); }
+  .tryit .filebar { position: relative; display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+  .tryit .fname { font: .78rem/1.4 var(--mono); color: var(--muted); }
+  .tryit .readout { font: .8rem/1.5 var(--mono); color: var(--muted); margin: .7rem 0 0; }
+  .tryit .readout strong { color: var(--ink); font-weight: 600; }
+  @media (max-width: 34rem) { .pair { grid-template-columns: 1fr; } }
+
+  /* ---------- print ---------- */
+  /* A browser leaves backgrounds out of a printout and keeps text colours,
+     and this palette is light ink on a dark ground. Printing part 2 gave a
+     PDF with 28 pure-white fills sitting on unmarked paper, so the page was
+     partly blank without ever saying so.
+
+     The fix is a palette rather than a stylesheet. Every rule on the page,
+     and every inline figure, already reads its colours from these names, so
+     redefining them turns the whole thing over at once, figures included.
+
+     The fixed texture layers and the tinted canvas go: an ornament made for
+     a screen is only toner on paper. The panning figures are let out of
+     their scroll box, since on paper a scroll box is a crop. */
+  @media print {
+    :root {
+      color-scheme: light;
+      --page: #fff; --surface: #fff; --ink: #000; --ink-2: #1a1a1a;
+      --muted: #444; --hairline: #b4b4b4; --border: #b4b4b4;
+      --accent: #00563f; --bad: #9b1c1c; --good: #14532d; --code-bg: #f5f5f5;
+      --panel: #fff; --ink-3: #444; --g-fine: transparent;
+      --g-mid: transparent; --g-coarse: transparent; --grid-2: #b4b4b4;
+      --phos: #00563f; --phos-2: #00563f;
+    }
+    body { padding-left: 0; }
+    body::before, body::after, #cells { display: none; }
+    figure { overflow: visible; }
+    figure svg { min-width: 0; }
+    figure, pre, table { break-inside: avoid; }
+  }
+  /* ── browser-tools rail ── begin ──────────────────────────────────────── */
+  :root { --fv-w: 15.5rem; }
+  .fv-rail, .fv-rail-toggle, .fv-skip {
+    --fv-bg: var(--panel);
+    --fv-ink: var(--ink);
+    --fv-ink-2: var(--ink-2);
+    --fv-muted: var(--ink-3);
+    --fv-line: var(--grid-2);
+    --fv-accent: var(--phos);
+    --fv-radius: 3px;
+    --fv-font: 500 .78rem/1.5 var(--mono);
+    --fv-mono: var(--mono);
+  }
+  .fv-rail {
+    position: fixed; z-index: 60; inset: 0 auto 0 0; width: var(--fv-w);
+    display: flex; flex-direction: column; gap: .85rem;
+    padding: 1.3rem 1rem 1.1rem;
+    background: var(--fv-bg); color: var(--fv-ink); font: var(--fv-font);
+    border-right: 1px solid var(--fv-line);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .fv-rail-kicker {
+    margin: 0; font: 700 .62rem/1 var(--fv-mono); letter-spacing: .18em;
+    text-transform: uppercase; color: var(--fv-muted);
+  }
+  .fv-rail-claim {
+    margin: 0; padding: .55rem .6rem; border-radius: var(--fv-radius);
+    border: 1px solid var(--fv-line);
+    font-size: .74rem; line-height: 1.5; color: var(--fv-ink-2);
+  }
+  .fv-rail-badge {
+    display: inline-block; margin-right: .4rem;
+    font: 700 .58rem/1 var(--fv-mono); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--fv-accent); border: 1px solid currentColor; border-radius: 99px;
+    padding: .2rem .42rem; vertical-align: .06em;
+  }
+  .fv-rail-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+  .fv-rail-item {
+    display: grid; grid-template-columns: 1.35rem 1fr; gap: .55rem; align-items: start;
+    padding: .5rem .55rem; border-radius: var(--fv-radius);
+    border: 1px solid transparent; text-decoration: none; color: inherit;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  a.fv-rail-item:hover, a.fv-rail-item:focus-visible {
+    border-color: var(--fv-accent); color: var(--fv-accent); outline: none;
+  }
+  a.fv-rail-item[aria-current="page"] { border-color: var(--fv-accent); color: var(--fv-accent); }
+  .fv-rail-item svg { width: 1.35rem; height: 1.35rem; display: block; margin-top: .1rem; }
+  .fv-rail-name { display: block; font-weight: 600; }
+  .fv-rail-desc { display: block; font-size: .71rem; line-height: 1.4; color: var(--fv-muted); margin-top: .1rem; }
+  .fv-rail-item.is-planned { color: var(--fv-muted); cursor: default; }
+  .fv-rail-item.is-planned .fv-rail-name { font-weight: 500; }
+  .fv-rail-soon {
+    font: 700 .55rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--fv-muted); border: 1px solid var(--fv-line); border-radius: 99px;
+    padding: .18rem .38rem; margin-left: .35rem; vertical-align: .1em;
+  }
+  .fv-rail-foot {
+    margin: auto 0 0; padding-top: .8rem; border-top: 1px solid var(--fv-line);
+    font-size: .69rem; line-height: 1.55; color: var(--fv-muted);
+  }
+  .fv-rail-foot a { color: inherit; }
+  .fv-rail-toggle {
+    position: fixed; z-index: 61; left: .7rem; bottom: .7rem;
+    display: none; align-items: center; gap: .45rem;
+    padding: .55rem .8rem; border-radius: 99px; cursor: pointer;
+    background: var(--fv-bg); color: var(--fv-ink);
+    border: 1px solid var(--fv-line);
+    font: 700 .68rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    box-shadow: 0 4px 18px rgba(0,0,0,.35);
+  }
+  .fv-rail-toggle svg { width: .95rem; height: .95rem; }
+  /* Sits above the page and drops into view only while it has focus, which
+     is the one moment it is any use. It is inserted as the first child of
+     the body, so it is the first thing a Tab reaches. */
+  .fv-skip {
+    position: fixed; z-index: 62; top: .6rem; left: .6rem;
+    transform: translateY(-180%); transition: transform .15s ease;
+    padding: .5rem .8rem; border-radius: var(--fv-radius);
+    background: var(--fv-accent); color: var(--fv-bg);
+    font: 700 .7rem/1 var(--fv-mono); letter-spacing: .1em;
+    text-transform: uppercase; text-decoration: none;
+  }
+  .fv-skip:focus { transform: none; }
+  body { padding-left: var(--fv-w); }
+  @media (max-width: 62rem) {
+    body { padding-left: 0; }
+    /* Pushed off screen the panel was still in the tab order, so three
+       invisible links sat between the toggle and the article and the caret
+       disappeared into them. `visibility` takes it out of the order as well.
+
+       The two directions need different timing, hence the pair of rules.
+       Going out, the switch waits for the slide to finish, or the panel would
+       vanish on the spot instead of leaving. Coming in it has to be immediate:
+       with the switch left to the transition it landed a frame late, and
+       focus() on a panel that is still hidden does nothing, silently, which is
+       exactly how the first version of this failed to move the caret. */
+    .fv-rail {
+      transform: translateX(-102%);
+      transition: transform .22s ease, visibility 0s linear .22s;
+      visibility: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,.45); width: min(19rem, 84vw);
+    }
+    .fv-rail.open {
+      transform: none; visibility: visible;
+      transition: transform .22s ease, visibility 0s;
+    }
+    .fv-rail-toggle { display: inline-flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fv-rail, .fv-skip { transition: none; }
+  }
+  /* None of this belongs on paper. The panel is fixed, so a printout carried
+     it across the first page on top of the text, and the toggle and the skip
+     link are both instructions for something a sheet of paper cannot do. */
+  @media print {
+    .fv-rail, .fv-rail-toggle, .fv-skip { display: none; }
+  }
+  /* ── browser-tools rail ── end ────────────────────────────────────────── */
+</style>
+<!-- Structured data, the one description of this page a machine is actually
+     going to parse. The visible text says the same things; this says them in
+     a shape a search engine or an assistant can act on, so the page is cited
+     as an article by a named author rather than as an anonymous URL.
+     The dates carry the same placeholders as everything else and are filled
+     by stamp-dates.ps1. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "@id": "https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html",
+  "url": "https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html",
+  "mainEntityOfPage": "https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html",
+  "headline": "128 Is Not the Middle: Gamma, Interpolation, and the Bug in Every Resize",
+  "description": "Average black and white and you get 128, which carries about a fifth of the light. The correct answer is 188. Gamma-encoded pixels break every naive resize, blur and blend.",
+  "image": "https://karhunen-loeve.github.io/images/og-02.png",
+  "inLanguage": "en",
+  "datePublished": "2026-09-11T12:00:00Z",
+  "dateModified": "2026-09-11T12:00:00Z",
+  "author": {
+    "@type": "Person",
+    "name": "Thomas Stephan",
+    "url": "https://github.com/karhunen-loeve"
+  },
+  "publisher": {
+    "@type": "Person",
+    "name": "Thomas Stephan",
+    "url": "https://github.com/karhunen-loeve"
+  },
+  "isPartOf": {
+    "@type": "Blog",
+    "@id": "https://karhunen-loeve.github.io/#blog",
+    "name": "Type-Safe Computer Vision",
+    "url": "https://karhunen-loeve.github.io/"
+  },
+  "position": 2,
+  "keywords": [
+    "computer vision",
+    "rust",
+    "type systems",
+    "image processing"
+  ]
+}
+</script>
+</head>
+<body>
+<canvas id="cells" aria-hidden="true"></canvas>
+<!-- browser-tools rail: begin -->
+<button class="fv-rail-toggle" type="button" aria-expanded="false" aria-controls="fv-rail">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+    <path d="M2 4h12M2 8h12M2 12h12"/>
+  </svg>
+  Tools
+</button>
+
+<nav class="fv-rail" id="fv-rail" aria-label="Browser tools">
+  <p class="fv-rail-kicker">Browser tools</p>
+  <p class="fv-rail-claim">
+    <span class="fv-rail-badge">wasm</span>
+    These run <strong>on your machine</strong>. The image you pick is decoded, measured and
+    drawn inside this tab. It is never uploaded, and the page makes no network request once
+    it has loaded.
+  </p>
+  <ul class="fv-rail-list">
+    <li>
+      <a class="fv-rail-item" href="tools/fast-corners.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M4 20V8l8-4 8 4v12"/><circle cx="12" cy="12" r="2.2"/>
+          <path d="M12 4v3.8M4 8l6 2.9M20 8l-6 2.9M12 14.2V20"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">FAST corners</span>
+          <span class="fv-rail-desc">Segment test, ranked and refined to sub-pixel</span>
+        </span>
+      </a>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">PNG chunks<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Every chunk, and which colour signal is missing</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M3 20C7 20 8 4 21 4"/><path d="M3 20h18"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">Gamma playground<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Resize in sRGB and in linear light, side by side</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">Resize weights<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">The tap table, and whose convention it matches</span>
+        </span>
+      </span>
+    </li>
+  </ul>
+  <p class="fv-rail-foot">
+    Powered by <a href="https://github.com/karhunen-loeve/fovea">fovea</a>, a type-safe computer
+    vision crate for Rust, compiled to WebAssembly.
+    <br><a href="tools/index.html">All tools</a>
+  </p>
+</nav>
+
+<script>
+(function () {
+  var rail = document.getElementById("fv-rail");
+  var btn = document.querySelector(".fv-rail-toggle");
+  if (!rail || !btn) return;
+
+  function set(open) {
+    rail.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+  }
+
+  btn.addEventListener("click", function () {
+    var open = !rail.classList.contains("open");
+    set(open);
+    // The toggle is reached by keyboard as often as by thumb, so send the
+    // caret where the panel is, and hand it back on the way out. Without
+    // that, closing leaves focus on a link that has just gone invisible.
+    //
+    // A frame later, not straight away: until the class change has been taken
+    // into account the panel is still hidden, and focus() on something hidden
+    // does nothing at all and reports nothing either. Measured going nowhere
+    // before this was added.
+    if (open) {
+      requestAnimationFrame(function () {
+        var first = rail.querySelector("a, button");
+        if (first) first.focus();
+      });
+    } else {
+      btn.focus();
+    }
+  });
+
+  // Escape, and a press anywhere outside. The panel covers the text it sits
+  // on, and reaching back to a button in the far corner to be rid of it is a
+  // chore on a phone.
+  addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && rail.classList.contains("open")) {
+      set(false);
+      btn.focus();
+    }
+  });
+  addEventListener("pointerdown", function (e) {
+    if (!rail.classList.contains("open")) return;
+    if (rail.contains(e.target) || btn.contains(e.target)) return;
+    set(false);
+  });
+
+  // The rail comes before the article in the source, so a keyboard and a
+  // screen reader both meet the tool list before the writing. Hence a skip
+  // link, built here rather than written into the markup: it needs a target,
+  // the target lives outside this block and is named differently on every
+  // page, and a skip link pointing at nothing is worse than no skip link.
+  // Built only once a target has actually been found, so it cannot be a dud.
+  //
+  // Waiting for the document, because this block sits at the top of the body
+  // and runs while the parser is still on its way to the article. Asking for
+  // it now finds nothing, which is how the first attempt shipped no link at
+  // all. With scripting off there is no link either, which is the honest
+  // outcome: there would be nothing to give it a target.
+  function skipLink() {
+    var main = document.querySelector("article, main");
+    if (!main || !document.body) return;
+    if (!main.id) main.id = "fv-content";
+    main.tabIndex = -1;
+    var skip = document.createElement("a");
+    skip.className = "fv-skip";
+    skip.href = "#" + main.id;
+    skip.textContent = "Skip to content";
+    document.body.insertBefore(skip, document.body.firstChild);
+  }
+  if (document.readyState === "loading") {
+    addEventListener("DOMContentLoaded", skipLink);
+  } else {
+    skipLink();
+  }
+})();
+</script>
+<!-- browser-tools rail: end -->
+<div class="mast">
+  <a class="brand" href="/">Karhunen-Loeve</a>
+  <span>type-safe computer vision</span>
+  <span class="sp"></span>
+  <span>part 02 of 3</span>
+</div>
+<article>
+
+<p class="kicker">Type-Safe Computer Vision · Part 2 of 3</p>
+<h1>128 Is Not the Middle</h1>
+<p class="dek">Average a black pixel and a white pixel. Your code computes 127.5, rounds it to 128, and stores it. That answer is wrong by a margin you can see from across the room, and it is in nearly every resize you have ever written.</p>
+<p class="byline">Thomas Stephan · <time datetime="2026-09-11T12:00:00Z">11 September 2026</time> · <a href="/">Series index</a></p>
+
+<h2>A one-line quiz</h2>
+
+<p>You are downscaling a tiny image: a 2×2 checkerboard of pure black and pure white, shrinking to a single pixel. Physically, that pixel should emit exactly half the light of white, because it replaces an area that was half black, half white. What value do you store?</p>
+
+<figure>
+<div class="fig1">
+<svg viewBox="0 0 680 330" role="img" aria-label="A black and white checkerboard downscaled two ways: naive byte averaging gives a dark gray of value 128; averaging in linear light gives the visually correct gray of value 188">
+  <!-- checkerboard -->
+  <g>
+    <rect x="50" y="45" width="130" height="130" fill="#ffffff" stroke="var(--border)"/>
+    <rect x="50" y="45" width="65" height="65" fill="#000000"/>
+    <rect x="115" y="110" width="65" height="65" fill="#000000"/>
+    <text x="115" y="200" text-anchor="middle" class="svg-ink2" font-size="13">50% black, 50% white</text>
+  </g>
+  <path d="M195 90 L275 70" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr2)"/>
+  <path d="M195 140 L275 160" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr2)"/>
+  <defs><marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+  <!-- naive -->
+  <g>
+    <rect x="290" y="40" width="90" height="70" rx="8" fill="rgb(128,128,128)"/>
+    <text x="395" y="65" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">mean = 127.5 → 128</tspan></text>
+    <text x="395" y="86" class="svg-ink2" font-size="13">naive byte average, clearly too dark</text>
+  </g>
+  <!-- correct -->
+  <g>
+    <rect x="290" y="130" width="90" height="70" rx="8" fill="rgb(188,188,188)"/>
+    <text x="395" y="155" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">average in light = 188</tspan></text>
+    <text x="395" y="176" class="svg-ink2" font-size="13">what half of white’s light actually looks like</text>
+  </g>
+  <!-- the same pattern, fine enough that the eye averages it; the swatch-sized
+       hole at x=290..380, y=215..285 is filled by the canvas next to this svg -->
+  <g>
+    <text x="395" y="240" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">the same pattern</tspan></text>
+    <text x="395" y="261" class="svg-ink2" font-size="13">one square per screen pixel</text>
+  </g>
+</svg>
+  <canvas id="sq-fine" aria-label="The same 50/50 black and white pattern at one square per screen pixel, which the eye reads as a light gray."></canvas>
+</div>
+<figcaption>Fig. 1. The third swatch is the same 50/50 pattern with one square per screen pixel, so your eye averages it instead of resolving it. Hold it against the two above: it is not the byte average. Your eye averages <em>light</em>, and so does every camera lens; naive code averages <em>bytes</em>.</figcaption>
+</figure>
+
+<p>If your answer was 128, so was nearly every image library, browser, and game engine for years, and it is still the default in most computer-vision code today. It is also measurably, visibly wrong. The correct answer is <strong>188</strong>.</p>
+
+<h2>The trick: pixel values aren’t light</h2>
+
+<p>Here is the secret those three bytes never told you. The numbers stored in an ordinary image (a JPEG, a PNG, a camera frame) are not amounts of light. They are <em>sRGB-encoded</em> values: light that has been run through a compression curve (a “gamma” curve) before storage. The curve exists for a good reason: human vision is far more sensitive to differences in shadows than in highlights, so encoding spends more of its 256 codes on dark tones. But it means the scale is not linear:</p>
+
+<figure>
+<svg viewBox="0 0 680 340" role="img" aria-label="Line chart of the sRGB decoding curve: stored value on the x axis from 0 to 255, emitted light on the y axis from 0 to 100 percent. The curve bows below the diagonal; stored 128 maps to about 22 percent light and stored 188 maps to about 50 percent light">
+  <!-- plot area: x 70..640, y 30..280 -->
+  <!-- gridlines -->
+  <g stroke="var(--hairline)" stroke-width="1">
+    <line x1="70" y1="30"  x2="640" y2="30"/>
+    <line x1="70" y1="92.5" x2="640" y2="92.5"/>
+    <line x1="70" y1="155" x2="640" y2="155"/>
+    <line x1="70" y1="217.5" x2="640" y2="217.5"/>
+  </g>
+  <line x1="70" y1="280" x2="640" y2="280" stroke="var(--hairline)" stroke-width="1.5"/>
+  <!-- y labels -->
+  <g class="svg-muted" font-size="11" text-anchor="end">
+    <text x="62" y="34">100%</text>
+    <text x="62" y="96.5">75%</text>
+    <text x="62" y="159">50%</text>
+    <text x="62" y="221.5">25%</text>
+    <text x="62" y="284">0%</text>
+  </g>
+  <!-- x labels -->
+  <g class="svg-muted" font-size="11" text-anchor="middle">
+    <text x="70"  y="298">0</text>
+    <text x="212.5" y="298">64</text>
+    <text x="355" y="298">128</text>
+    <text x="497.5" y="298">192</text>
+    <text x="640" y="298">255</text>
+  </g>
+  <text x="355" y="322" text-anchor="middle" class="svg-ink2" font-size="12">stored value (what the file says)</text>
+  <text x="24" y="155" text-anchor="middle" class="svg-ink2" font-size="12" transform="rotate(-90 24 155)">light emitted (what you see)</text>
+  <!-- diagonal reference -->
+  <line x1="70" y1="280" x2="640" y2="30" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6 5" opacity=".85"/>
+  <text x="300" y="173" class="svg-muted" font-size="11" transform="rotate(-23.7 300 173)">if values were light (they aren’t)</text>
+  <!-- sRGB decode curve: y = 280 - 250 * decode(x), x = 70 + 570 * (stored/255) -->
+  <path d="M 70 280
+           C 190 278, 260 262, 355 226
+           C 425 200, 462 174, 490 155
+           C 545 118, 610 72, 640 30"
+        fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- marker: 128 -> 21.6% : x=355, y=280-250*0.216=226 -->
+  <line x1="355" y1="280" x2="355" y2="226" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="70" y1="226" x2="355" y2="226" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
+  <circle cx="355" cy="226" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
+  <text x="365" y="243" class="svg-ink" font-size="12.5" font-weight="600">stored 128 → only ≈22% of white’s light</text>
+  <!-- marker: 188 -> 50% : x=70+570*(188/255)=490.3? compute 188/255=0.7373*570=420.2+70=490.2, y=280-125=155 -->
+  <line x1="490" y1="280" x2="490" y2="155" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
+  <line x1="70" y1="155" x2="490" y2="155" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
+  <circle cx="490" cy="155" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
+  <text x="505" y="177" class="svg-ink" font-size="12.5" font-weight="600">stored 188 → ≈50%</text>
+</svg>
+<figcaption>Fig. 2. The sRGB transfer curve. Stored values are a <em>compressed</em> code for light. The halfway <em>code</em> (128) sits at barely a fifth of the light; the halfway <em>light</em> (50%) is stored as 188. Any arithmetic that pretends the x-axis is the y-axis inherits this distortion.</figcaption>
+</figure>
+
+<p>Follow the checkerboard through both pipelines, with the actual numbers:</p>
+
+<figure>
+<svg viewBox="0 0 680 300" role="img" aria-label="The 2 by 2 matrix 0,255,255,0 averaged two ways. Along the top, averaging the stored bytes directly gives 128. Below, the same matrix is decoded to the linear values 0.0 and 1.0, averaged to 0.5, and re-encoded to 188.">
+  <defs>
+    <marker id="arrR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--bad)"/></marker>
+    <marker id="arrG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--good)"/></marker>
+  </defs>
+
+  <!-- the source: 2x2 stored bytes, centre line y=96 -->
+  <text x="120" y="34" text-anchor="middle" class="svg-ink" font-size="14" font-weight="600">stored bytes</text>
+  <g class="mono" font-size="15" text-anchor="middle">
+    <rect x="60"  y="50"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="124" y="50"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="60"  y="92"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="124" y="92"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <text x="88"  y="76"  class="svg-ink">0</text>
+    <text x="152" y="76"  class="svg-ink">255</text>
+    <text x="88"  y="118" class="svg-ink">255</text>
+    <text x="152" y="118" class="svg-ink">0</text>
+  </g>
+
+  <!-- naive path: straight across, on the source's own centre line -->
+  <text x="380" y="82" text-anchor="middle" class="mono svg-ink2" font-size="12.5">mean(0, 255, 255, 0) = 127.5</text>
+  <path d="M196 92 L560 92" stroke="var(--bad)" stroke-width="1.5" fill="none" marker-end="url(#arrR)"/>
+  <rect x="574" y="71" width="52" height="42" rx="6" fill="rgb(128,128,128)"/>
+  <text x="600" y="131" text-anchor="middle" class="mono svg-ink" font-size="13">128 ✗</text>
+
+  <!-- the branch: straight down out of the source -->
+  <path d="M120 138 L120 188" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
+  <text x="132" y="172" class="svg-ink2" font-size="12">decode to light</text>
+
+  <!-- the same matrix in linear light, directly below the source -->
+  <g class="mono" font-size="14" text-anchor="middle">
+    <rect x="60"  y="196" width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="124" y="196" width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="60"  y="238" width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <rect x="124" y="238" width="56" height="42" fill="none" stroke="var(--hairline)"/>
+    <text x="88"  y="222" class="svg-ink">0.0</text>
+    <text x="152" y="222" class="svg-ink">1.0</text>
+    <text x="88"  y="264" class="svg-ink">1.0</text>
+    <text x="152" y="264" class="svg-ink">0.0</text>
+  </g>
+
+  <!-- linear path: one straight line through mean and re-encode, y=238 -->
+  <text x="256" y="228" text-anchor="middle" class="mono svg-ink2" font-size="12.5">mean = 0.5</text>
+  <path d="M196 238 L316 238" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
+  <rect x="330" y="217" width="52" height="42" rx="6" fill="rgb(188,188,188)"/>
+  <text x="356" y="277" text-anchor="middle" class="mono svg-ink2" font-size="13">0.5</text>
+
+  <text x="479" y="228" text-anchor="middle" class="svg-ink2" font-size="12">re-encode</text>
+  <path d="M398 238 L560 238" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
+  <rect x="574" y="217" width="52" height="42" rx="6" fill="rgb(188,188,188)"/>
+  <text x="600" y="277" text-anchor="middle" class="mono svg-ink" font-size="13">188 ✓</text>
+</svg>
+<figcaption>Fig. 3. Same input, two pipelines. The red path does arithmetic on the <em>code</em>; the green path decodes to light, averages, and re-encodes. The 0.5 swatch and the 188 swatch are the same gray, because re-encoding changes the number and not the light. Three extra steps, one visibly different answer.</figcaption>
+</figure>
+
+<h2>This is every resize, every blur, every blend</h2>
+
+<p>“Fine,” you say, “but who averages checkerboards?” <em>You do.</em> Constantly. Downscaling an image averages neighborhoods of pixels. Bilinear interpolation is a weighted average of four pixels. Gaussian blur is a weighted average of many. Alpha blending, anti-aliasing, feathered masks, image pyramids. All of it is the same operation: <strong>a weighted average of pixel values</strong>. Run any of them on encoded values and every output pixel that mixes different values is pulled toward black, exactly as 128 was, and the harder the contrast, the further.</p>
+
+<p>Interpolation makes the damage easy to see. Ask for the point halfway between a dark pixel (40) and a bright pixel (220):</p>
+
+<figure>
+<svg viewBox="0 0 680 268" role="img" aria-label="Two gradient strips, both running from gray 40 on the left to gray 220 on the right. Interpolating the stored bytes puts the midpoint at 130, which looks too dark; interpolating in linear light puts it at 163, which matches perceived halfway brightness. Below, red 255,0,0 blended with green 0,255,0 gives dark olive 128,128,0 on bytes and bright 188,188,0 in linear light.">
+  <defs>
+    <linearGradient id="gNaive" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="rgb(40,40,40)"/>
+      <stop offset="1" stop-color="rgb(220,220,220)"/>
+    </linearGradient>
+    <linearGradient id="gLinear" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0"    stop-color="rgb(40,40,40)"/>
+      <stop offset="0.25" stop-color="rgb(122,122,122)"/>
+      <stop offset="0.5"  stop-color="rgb(163,163,163)"/>
+      <stop offset="0.75" stop-color="rgb(194,194,194)"/>
+      <stop offset="1"    stop-color="rgb(220,220,220)"/>
+    </linearGradient>
+  </defs>
+
+  <!-- interpolating the encoded values -->
+  <text x="290" y="34" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">interpolating the stored bytes</text>
+  <rect x="50" y="44" width="480" height="36" fill="url(#gNaive)" stroke="var(--border)"/>
+  <line x1="290" y1="40" x2="290" y2="88" stroke="var(--bad)" stroke-width="1.5"/>
+  <text x="546" y="68" class="mono svg-ink" font-size="13">mid = 130 ✗</text>
+  <text x="50"  y="97" class="mono svg-muted" font-size="12">40</text>
+  <text x="530" y="97" text-anchor="end" class="mono svg-muted" font-size="12">220</text>
+
+  <!-- the same interpolation, in light -->
+  <text x="290" y="128" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">interpolating in linear light</text>
+  <rect x="50" y="138" width="480" height="36" fill="url(#gLinear)" stroke="var(--border)"/>
+  <line x1="290" y1="134" x2="290" y2="182" stroke="var(--good)" stroke-width="1.5"/>
+  <text x="546" y="162" class="mono svg-ink" font-size="13">mid = 163 ✓</text>
+  <text x="50"  y="191" class="mono svg-muted" font-size="12">40</text>
+  <text x="530" y="191" text-anchor="end" class="mono svg-muted" font-size="12">220</text>
+
+  <!-- the same arithmetic on two saturated colours, with the numbers to check -->
+  <g>
+    <rect x="50"  y="212" width="60" height="30" rx="5" fill="rgb(255,0,0)"/>
+    <text x="122" y="232" class="svg-ink" font-size="15">+</text>
+    <rect x="138" y="212" width="60" height="30" rx="5" fill="rgb(0,255,0)"/>
+    <text x="212" y="232" class="svg-ink" font-size="15">=</text>
+    <rect x="230" y="212" width="60" height="30" rx="5" fill="rgb(128,128,0)"/>
+    <text x="300" y="232" class="svg-ink2" font-size="12.5">muddy (bytes)</text>
+    <text x="404" y="232" class="svg-ink" font-size="15">vs</text>
+    <rect x="434" y="212" width="60" height="30" rx="5" fill="rgb(188,188,0)"/>
+    <text x="504" y="232" class="svg-ink2" font-size="12.5">bright (light)</text>
+  </g>
+  <g class="mono svg-muted" font-size="11.5" text-anchor="middle">
+    <text x="80"  y="258">255,0,0</text>
+    <text x="168" y="258">0,255,0</text>
+    <text x="260" y="258">128,128,0</text>
+    <text x="464" y="258">188,188,0</text>
+  </g>
+</svg>
+<figcaption>Fig. 4. Top: the naive gradient sags dark; its midpoint is 130 where the true half-light point is 163. Bottom: blending pure red and pure green on bytes gives a muddy olive. In linear light the mixture stays bright, as two overlapping stage lights would. Dark edges around bright objects after a blur? Same bug.</figcaption>
+</figure>
+
+<figure>
+<div class="pair">
+  <div>
+    <img src="images/gamma-thumb_naive.png"
+         srcset="images/gamma-thumb_naive.png 1x, images/gamma-thumb-640_naive.png 2x" width="320" height="160"
+         alt="The Milky Way reduced to a thumbnail by averaging the stored bytes. The band of the galaxy survives, but most of the individual stars are gone.">
+    <p class="lbl">averaged as bytes</p>
+  </div>
+  <div>
+    <img src="images/gamma-thumb_linear.png"
+         srcset="images/gamma-thumb_linear.png 1x, images/gamma-thumb-640_linear.png 2x" width="320" height="160"
+         alt="The same reduction performed in linear light. The star field is still there, and the galaxy reads brighter.">
+    <p class="lbl">averaged in light</p>
+  </div>
+</div>
+<figcaption>Fig. 5. The same photograph shrunk to a thumbnail twice, same filter, same number of steps. The only difference is whether the bytes were decoded to light before averaging. The stars survive on one side only.
+<span class="credit">Photo: <a href="https://commons.wikimedia.org/wiki/File:ESO_-_Milky_Way.jpg">ESO/S. Brunier</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Both thumbnails produced with <code>gamma_thumbnails</code> in <a href="https://github.com/karhunen-loeve/fovea-examples">fovea-examples</a>, which prints the measured difference.</span></figcaption>
+</figure>
+
+<p>This is why gamma-ignorant thumbnails look slightly lifeless, why blurred highlights grow <a href="https://github.com/libvips/libvips/discussions/3851">dark halos</a>, and why <a href="https://www.ericbrasseur.org/gamma.html">Eric Brasseur’s gamma test image</a> (a fine black-and-white pattern whose structure survives a correct downscale) collapses into flat gray in essentially every scaler he tried. The internet has re-discovered this bug on a loop for two decades: <a href="https://github.com/python-pillow/Pillow/issues/1604">Pillow</a> closed the request as out of scope, <a href="https://github.com/imgproxy/imgproxy/issues/145">imgproxy</a> and <a href="https://github.com/darktable-org/darktable/issues/13335">darktable</a> carry the same report, and it still ships in production, everywhere, today.</p>
+
+<section class="tryit" id="tryit" hidden>
+  <h3>Try it with your own photo</h3>
+  <p>Both thumbnails below are computed here, in this page, with the same box average over the same blocks. The only difference is whether the sRGB curve is decoded first. Nothing is uploaded: the file never leaves your machine.</p>
+  <p class="filebar">
+    <input type="file" id="tryit-file" accept="image/*">
+    <label class="btn" for="tryit-file">Choose a photo</label>
+    <span class="fname" id="tryit-name">none chosen yet</span>
+  </p>
+  <div class="pair" id="tryit-out" hidden>
+    <div>
+      <canvas id="tryit-naive"></canvas>
+      <p class="lbl">averaged as bytes</p>
+    </div>
+    <div>
+      <canvas id="tryit-linear"></canvas>
+      <p class="lbl">averaged in light</p>
+    </div>
+  </div>
+  <p class="readout" id="tryit-readout">Small bright things on a dark ground show it best: a night sky, city lights, sparkle on water. Flat, mid-tone photos have little to mix and will barely differ.</p>
+</section>
+
+<p class="pull">Nobody’s math was wrong. The average was computed perfectly, on numbers that were never averages-compatible in the first place.</p>
+
+<h2>Look at what kind of bug this is</h2>
+
+<p>Once more, there is no logic error. The interpolation formula is textbook-correct. The bug is that the formula was applied to <em>encoded</em> values as if they were <em>linear</em> ones: two kinds of numbers that happen to share the same byte width, living in the same arrays, with nothing anywhere to tell them apart. That’s not a logic bug. It is a <strong>type bug</strong>. An <code>ndarray</code> of <code>uint8</code> cannot say “I am gamma-encoded; please don’t do arithmetic on me,” so nothing stops you. Or your teammate. Or the coding agent that wrote <code>cv2.resize</code> into your pipeline, exactly as ten thousand tutorials taught it to.</p>
+
+<h2>What if the image knew it was encoded?</h2>
+
+<p>In <a href="https://crates.io/crates/fovea">fovea</a>, gamma-encoded and linear pixels are <em>different types</em>. <code>Srgb8</code> and <code>Rgb8</code> have identical bytes, but only the linear one implements the trait that blending operations require. The compiler knows the difference, so it enforces the physics:</p>
+
+<pre><code><span class="kw">use</span> fovea::pixel::{<span class="ty">Srgb8</span>, <span class="ty">RgbF32</span>};
+<span class="kw">use</span> fovea::transform::{<span class="ty">Bilinear</span>, <span class="ty">SrgbGamma</span>, convert_image, resize};
+
+<span class="kw">let</span> photo: Image&lt;<span class="ty">Srgb8</span>&gt; = <span class="cmt">/* decoded from a PNG, gamma-encoded like every photo */</span>;
+
+resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
+<span class="err">// error[E0277]: `Srgb8` does not implement `LinearSpace`</span>
+<span class="err">//   = interpolation blends samples; blending gamma-encoded values is not meaningful</span></code></pre>
+
+<p>The compile error <em>is</em> the lesson from this article, delivered at the exact line where it applies, before the program ever runs. And the fix reads like the green path in Fig. 3: decode, operate, re-encode, each step named:</p>
+
+<pre><code><span class="cmt">// 1. decode the gamma curve, bytes become linear light</span>
+<span class="kw">let</span> light: Image&lt;<span class="ty">RgbF32</span>&gt; = convert_image(&amp;photo, <span class="ty">SrgbGamma</span>);
+
+<span class="cmt">// 2. now averaging is physically meaningful, resize away</span>
+<span class="kw">let</span> small = resize(&amp;light, Size::new(800, 600), <span class="ty">Bilinear</span>);
+
+<span class="cmt">// 3. re-encode for storage/display</span>
+<span class="kw">let</span> out: Image&lt;<span class="ty">Srgb8</span>&gt; = convert_image(&amp;small, <span class="ty">SrgbGamma</span>);</code></pre>
+
+<p>Note what the type system did <em>not</em> do: it didn’t silently linearize behind your back, and it didn’t forbid anything useful. If you genuinely want nearest-neighbor sampling on encoded data (which copies pixels and never blends them), that compiles fine, because it’s actually valid. The rule is precise: <em>operations that mix values require values that may be mixed.</em> Everything the checkerboard taught us, encoded in one trait bound.</p>
+
+<p>One line of forum wisdom (“convert to linear before you blur”) has been repeated for twenty years and forgotten for twenty years. A type checker never forgets. As more vision code gets written by agents trained on those very tutorials, the difference between advice and a trait bound is that one of them is enforced.</p>
+
+<p>So far our bugs lived inside a single image. The final part climbs a whole stack of them: image pyramids and scale-space, where sizes stop matching, coordinates drift by half a pixel per level, and one library packed three numbers into one integer and called it an <code>octave</code>. That part is still being finished; it follows shortly.</p>
+
+<div class="footer-nav">
+  <strong>Type-Safe Computer Vision</strong>, a series about bugs the compiler could have caught:
+  <a href="01-rgb-bgr-the-blue-face-bug.html">Part 1: The Blue Face Bug, RGB vs BGR</a> ·
+  Part 2: 128 Is Not the Middle
+  <br><br>
+  <a href="/">Series index</a> · <a href="/feed.xml">Atom feed</a> · <a href="https://github.com/karhunen-loeve/fovea">fovea on GitHub</a>
+</div>
+
+</article>
+<script>
+/* ---------------------------------------------------------------------------
+   A few cells of the grid, tinted.
+
+   Three things keep it from looking machine-made. The tinting is multi-scale,
+   like the grid it sits on: mostly 16 px cells, some 32, rarely a 64 px block,
+   each fainter as it gets larger. Every cell's alpha is drawn from a range
+   rather than fixed. And the probability of a cell being tinted is modulated
+   by a slow lumpy field, so the cells clump and leave bare patches instead of
+   scattering evenly - an even scatter is what reads as wallpaper.
+
+   The seed is fixed and the lattice is anchored to the viewport, so which
+   cells exist never changes and the grid does not move when you scroll. The
+   fill is inset by a pixel, so the grid lines underneath survive.
+
+   Nothing is tinted where you read. The text boxes are measured in the DOM and
+   every cell's alpha is scaled by its clearance from the nearest one, with a
+   100 px shoulder. Since the layer is fixed and the text is not, that clearance
+   changes as you scroll: a cell fades out as a paragraph arrives and fades
+   back in once it has passed. The texture reacts to what is on top of it.
+--------------------------------------------------------------------------- */
+(function () {
+  var cv = document.getElementById('cells');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // A coloured tint on a dark ground has no middle setting: too faint and it
+  // is merely "a bit lighter", too strong and it is a flat block. So the
+  // cells are sparse and properly coloured rather than many and muddy.
+  //
+  // k is a per-colour gain. Amber is a warm hue on a cold ground, so at the
+  // alpha the others use it turns olive-brown; it is the rarest of the three
+  // and gets to be stronger when it does appear.
+  var COLS = [
+    { c: '87,255,207',  w: .58, k: 1.00 },   // mint
+    { c: '192,168,255', w: .30, k: 1.15 },   // violet
+    { c: '255,193,102', w: .12, k: 1.90 }    // amber
+  ];
+  var LEVELS = [
+    { cell: 16, p: .0145, lo: .055, hi: .150 },
+    { cell: 32, p: .0040, lo: .035, hi: .085 },
+    { cell: 64, p: .0012, lo: .020, hi: .045 }
+  ];
+
+  function lump(x, y) {
+    return 0.5 + 0.5 * (
+      0.55 * Math.sin(x / 260 + 1.3) * Math.cos(y / 310 - 0.7) +
+      0.30 * Math.sin(x /  95 - 2.1) * Math.cos(y / 130 + 1.9) +
+      0.15 * Math.sin((x + y) / 170)
+    );
+  }
+
+  // Every block whose text sits straight on the background. Cards are absent
+  // on purpose: their panel is opaque, so it hides the tint behind it anyway.
+  var READ = ['.mast', 'article > *', 'article li'];
+  var FEATHER = 100;  // px of soft shoulder around each block. It doubles as
+                      // the length over which a cell fades as you scroll past
+                      // it, which is why it is this wide: at 44 px a cell went
+                      // from nothing to full inside a single wheel step, and
+                      // that reads as a blink rather than a fade. Widening it
+                      // costs about 8 per cent of the cells.
+  var QUIET = 0;      // what survives under the text; raise it to keep a trace
+  var SCALE = 2;      // one canvas pixel per two CSS pixels
+
+  // The text boxes are held in DOCUMENT coordinates and measured only when the
+  // layout can have changed. Reading 21 rects on every scroll frame would
+  // force a layout each time; subtracting the scroll offset costs nothing.
+  var boxes = [];
+
+  function measure() {
+    var sx = scrollX, sy = scrollY;
+    boxes = [];
+    for (var i = 0; i < READ.length; i++) {
+      var els = document.querySelectorAll(READ[i]);
+      for (var j = 0; j < els.length; j++) {
+        var r = els[j].getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        boxes.push({ l: r.left + sx, t: r.top + sy, r: r.right + sx, b: r.bottom + sy });
+      }
+    }
+  }
+
+  // Clearance from the cell's whole rectangle, not from its centre. A 64 px
+  // cell can have a centre well clear of a paragraph and still cover its
+  // first two lines; measuring the centre let exactly that through.
+  function damp(cl, ct, cr, cb, sx, sy) {
+    var best = Infinity;
+    for (var i = 0; i < boxes.length; i++) {
+      var q = boxes[i];
+      var ql = q.l - sx, qt = q.t - sy, qr = q.r - sx, qb = q.b - sy;
+      var dx = cl > qr ? cl - qr : (ql > cr ? ql - cr : 0);
+      var dy = ct > qb ? ct - qb : (qt > cb ? qt - cb : 0);
+      var d = dx && dy ? Math.sqrt(dx * dx + dy * dy) : (dx || dy);
+      if (d < best) { best = d; if (best === 0) return QUIET; }
+    }
+    if (best >= FEATHER) return 1;
+    var t = best / FEATHER;
+    return QUIET + (1 - QUIET) * (t * t * (3 - 2 * t));   // smoothstep
+  }
+
+  // A slow, per-cell brightness wobble driven by the scroll position.
+  //
+  // The phase and the rate come from a position hash rather than from the
+  // PRNG: drawing them from the stream would shift every later draw and
+  // rearrange the whole pattern. Each cell therefore keeps its own phase for
+  // good, and neighbours drift apart instead of breathing in unison.
+  //
+  // It is a function of the scroll offset and nothing else, so it holds still
+  // the moment you stop scrolling. Nothing here animates on its own.
+  var WOBBLE = .26;    // peak deviation, so roughly plus or minus a quarter
+  var PITCH = 1200;    // px of scroll for one cycle, before the per-cell rate.
+                       // Deep and slow: the two together set how fast it
+                       // changes as you scroll, and that rate is WOBBLE/PITCH,
+                       // so the longer pitch more than cancels the bigger
+                       // amplitude. Over a short scroll it is calmer than
+                       // before; over a long one the swing is wider.
+
+  function hash(x, y, k) {
+    var h = Math.sin(x * 12.9898 + y * 78.233 + k * 37.719) * 43758.5453;
+    return h - Math.floor(h);
+  }
+
+  function wobble(x, y, sy) {
+    var phase = hash(x, y, 1) * 6.2831853;
+    var rate = 0.7 + hash(x, y, 2) * 0.7;          // 0.7x to 1.4x the pitch
+    return 1 + WOBBLE * Math.sin(sy / (PITCH * rate) * 6.2831853 + phase);
+  }
+
+  function pick(r) {
+    var acc = 0;
+    for (var i = 0; i < COLS.length; i++) { acc += COLS[i].w; if (r <= acc) return COLS[i]; }
+    return COLS[0];
+  }
+
+  function draw() {
+    var box = cv.getBoundingClientRect();
+    var CW = Math.max(1, Math.round(box.width)), CH = Math.max(1, Math.round(box.height));
+    var bw = Math.ceil(CW / SCALE), bh = Math.ceil(CH / SCALE);
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    ctx.clearRect(0, 0, bw, bh);
+
+    // The lattice, the clumping field and the seed are all anchored to the
+    // viewport, so which cells exist never changes. Only how much of each one
+    // survives does, and that is what the scrolling text decides.
+    var sx = scrollX, sy = scrollY;
+    var rnd = mulberry32(0x5eed1a17);
+
+    for (var L = 0; L < LEVELS.length; L++) {
+      var lv = LEVELS[L], c = lv.cell / SCALE;
+      for (var y = 0; y < CH; y += lv.cell) {
+        for (var x = 0; x < CW; x += lv.cell) {
+          if (rnd() > lv.p * (0.15 + 2.3 * lump(x, y))) continue;
+          var a = lv.lo + rnd() * (lv.hi - lv.lo);
+          var col = pick(rnd());
+          var g = damp(x, y, x + lv.cell, y + lv.cell, sx, sy);
+          if (g < .04) continue;
+          // ceiling tracks the wobble so the peaks are not clipped:
+          // the brightest amber reaches .285 x 1.26
+          var alpha = Math.min(.36, a * col.k * g * wobble(x, y, sy));
+          ctx.fillStyle = 'rgba(' + col.c + ',' + alpha.toFixed(3) + ')';
+          ctx.fillRect(x / SCALE + 1, y / SCALE + 1, c - 2, c - 2);
+        }
+      }
+    }
+  }
+
+  measure();
+  draw();
+
+  // That first measurement runs while the page can still grow: images and
+  // fonts are not in yet, and a panel that ships as `hidden` only appears when
+  // its own script runs. Any later change in height moves the text away from
+  // the holes cut for it, which shows up as background cells sitting behind
+  // paragraphs further down the page. So measure again whenever the document
+  // can have changed size. Re-measuring only paints, it never reflows, so
+  // observing the body cannot feed itself.
+  function remeasure() { measure(); draw(); }
+  addEventListener('load', remeasure);
+  if (window.ResizeObserver && document.body) {
+    var rt = null;
+    new ResizeObserver(function () {
+      clearTimeout(rt);
+      rt = setTimeout(remeasure, 80);
+    }).observe(document.body);
+  }
+
+  var queued = false;
+  addEventListener('scroll', function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; draw(); });
+  }, { passive: true });
+
+  var t = null;
+  addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(function () { measure(); draw(); }, 150);
+  });
+})();
+</script>
+<script>
+/* ── try-it-yourself: the same box average, once on stored bytes and once in
+   linear light. The panel is hidden until this script runs, so a browser
+   without JS simply shows the static figure above. ───────────────────────── */
+(function () {
+  var panel = document.getElementById('tryit');
+  if (!panel || !window.createImageBitmap) return;
+  panel.hidden = false;
+
+  var TARGET = 320;      /* thumbnail width in px */
+  var CAP    = 2400;     /* source is pre-scaled to this width to bound memory */
+  var SLICE  = 8 << 20;  /* bytes of source the pre-scale holds at once */
+
+  /* sRGB transfer function, both directions. A 256-entry table for decode
+     because it runs once per source pixel per channel. */
+  var DECODE = new Float32Array(256);
+  for (var i = 0; i < 256; i++) {
+    var c = i / 255;
+    DECODE[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  }
+  function encode(v) {
+    v = v < 0 ? 0 : v > 1 ? 1 : v;
+    var s = v <= 0.0031308 ? 12.92 * v : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+    return Math.round(s * 255);
+  }
+
+  /* Bring a large photo down to CAP, in linear light, one horizontal slice at
+     a time.
+
+     This used to be a single `drawImage` into a smaller canvas, which was
+     wrong in a way this article of all articles cannot afford: canvas scaling
+     averages the stored bytes. The demonstration then began by committing the
+     bug it goes on to measure, and since the damage is already done once, the
+     second reduction has less left to find. On a star field the reported
+     difference collapsed from 57% to 12% purely by handing in a photo above
+     the cap. Both paths still got the same input, so nothing looked broken;
+     the number was just quietly too small.
+
+     So the reduction happens here instead, decoded to light, and the result
+     goes back out as sRGB bytes: an honest smaller original, from which both
+     paths then start level.
+
+     Slices, because correctness needs one pass over every original pixel and
+     a 24 megapixel photo will not fit in one `ImageData`. `drawImage` copies
+     each slice at 1:1, so nothing is resampled on the way in, and the slice
+     height follows from a byte budget rather than a fixed row count, so the
+     footprint stays put whether the source is 3000 or 24000 pixels wide. */
+  function prescale(bmp, report) {
+    var pf = Math.max(1, Math.ceil(bmp.width / CAP));
+    var sw = bmp.width;
+    var canvas = document.createElement('canvas');
+
+    if (pf === 1) {
+      canvas.width = sw; canvas.height = bmp.height;
+      var ctx1 = canvas.getContext('2d', { willReadFrequently: true });
+      ctx1.drawImage(bmp, 0, 0);
+      return Promise.resolve(ctx1.getImageData(0, 0, sw, bmp.height));
+    }
+
+    var outW = Math.max(1, Math.floor(sw / pf));
+    var outH = Math.max(1, Math.floor(bmp.height / pf));
+    var out = new ImageData(outW, outH);
+    var od = out.data;
+
+    var rows = Math.max(1, Math.floor(SLICE / (sw * pf * 4)));
+    canvas.width = sw; canvas.height = rows * pf;
+    var sctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    /* One slice per frame rather than all of them in one go. A 34 megapixel
+       photo is a little under a second of arithmetic on a desktop and about
+       six on a mid-range phone, and spent in one block that is a frozen tab
+       with the word "reducing" sitting in it. Handing back a frame between
+       slices costs the sum of those waits, roughly a fifth of a second, and
+       buys a page that still scrolls and a count that visibly moves. */
+    return new Promise(function (resolve) {
+      var y0 = 0, told = -1;
+      function slice() {
+        var n = Math.min(rows, outH - y0);
+        sctx.drawImage(bmp, 0, y0 * pf, sw, n * pf, 0, 0, sw, n * pf);
+        var sd = sctx.getImageData(0, 0, sw, n * pf).data;
+        for (var y = 0; y < n; y++) {
+          for (var x = 0; x < outW; x++) {
+            var r = 0, g = 0, b = 0, k = 0;
+            for (var sy = y * pf; sy < (y + 1) * pf; sy++) {
+              for (var sx = x * pf; sx < (x + 1) * pf; sx++) {
+                var i = (sy * sw + sx) * 4;
+                r += DECODE[sd[i]]; g += DECODE[sd[i + 1]]; b += DECODE[sd[i + 2]];
+                k++;
+              }
+            }
+            var o = ((y0 + y) * outW + x) * 4;
+            od[o] = encode(r / k); od[o + 1] = encode(g / k); od[o + 2] = encode(b / k);
+            od[o + 3] = 255;
+          }
+        }
+        y0 += n;
+        /* Only when the tenth changes. Writing the count every slice dirties
+           the page, and a repaint here means the three fixed background
+           layers again: on a throttled phone that cost more than the
+           arithmetic it was reporting on, and roughly doubled the wait. The
+           yield stays either way, so the page keeps responding. */
+        var tenth = Math.floor((y0 / outH) * 10);
+        if (report && tenth !== told) { told = tenth; report(y0 / outH); }
+        if (y0 < outH) requestAnimationFrame(slice);
+        else resolve(out);
+      }
+      requestAnimationFrame(slice);
+    });
+  }
+
+  /* Box average over f×f blocks. `linear` decides whether the samples are
+     decoded to light before they are summed — that single flag is the whole
+     subject of this article. */
+  function reduce(src, f, outW, outH, linear) {
+    var out = new ImageData(outW, outH);
+    var sw = src.width, sd = src.data, od = out.data;
+    for (var y = 0; y < outH; y++) {
+      for (var x = 0; x < outW; x++) {
+        var r = 0, g = 0, b = 0, n = 0;
+        var y1 = Math.min((y + 1) * f, src.height);
+        var x1 = Math.min((x + 1) * f, sw);
+        for (var sy = y * f; sy < y1; sy++) {
+          for (var sx = x * f; sx < x1; sx++) {
+            var i = (sy * sw + sx) * 4;
+            if (linear) {
+              r += DECODE[sd[i]]; g += DECODE[sd[i + 1]]; b += DECODE[sd[i + 2]];
+            } else {
+              r += sd[i]; g += sd[i + 1]; b += sd[i + 2];
+            }
+            n++;
+          }
+        }
+        var o = (y * outW + x) * 4;
+        if (linear) {
+          od[o] = encode(r / n); od[o + 1] = encode(g / n); od[o + 2] = encode(b / n);
+        } else {
+          od[o] = Math.round(r / n); od[o + 1] = Math.round(g / n); od[o + 2] = Math.round(b / n);
+        }
+        od[o + 3] = 255;
+      }
+    }
+    return out;
+  }
+
+  /* Mean relative luminance, measured in linear light (Rec. 709 weights).
+     Averaging the stored bytes instead would repeat the mistake being
+     measured. */
+  function meanLuminance(img) {
+    var d = img.data, sum = 0, px = img.width * img.height;
+    for (var i = 0; i < d.length; i += 4) {
+      sum += 0.2126 * DECODE[d[i]] + 0.7152 * DECODE[d[i + 1]] + 0.0722 * DECODE[d[i + 2]];
+    }
+    return sum / px;
+  }
+
+  function show(canvas, img) {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    canvas.getContext('2d').putImageData(img, 0, 0);
+  }
+
+  var readout = document.getElementById('tryit-readout');
+  document.getElementById('tryit-file').addEventListener('change', function (ev) {
+    var file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    var nameEl = document.getElementById('tryit-name');
+    if (nameEl) nameEl.textContent = file.name;
+    readout.textContent = 'reducing…';
+    var fileW = 0, fileH = 0;
+    createImageBitmap(file).then(function (bmp) {
+      /* Bound the arrays, in linear light so the cap costs accuracy and not
+         the result. Below the cap this is a straight read of the pixels. */
+      fileW = bmp.width; fileH = bmp.height;
+      return prescale(bmp, function (done) {
+        readout.textContent = 'reducing in light, ' + Math.round(done * 100) + '%…';
+      }).then(function (src) {
+        bmp.close && bmp.close();
+        return src;
+      });
+    }).then(function (src) {
+      var w = src.width, h = src.height;
+
+      var f = Math.max(1, Math.floor(w / TARGET));
+
+      /* Under twice the target width the block is one pixel across, so there
+         is no average to take and both paths copy the same bytes. The panel
+         then reported "0.0% darker", which reads as the article being wrong
+         rather than as the image being too small. Say which it is. */
+      if (f < 2) {
+        document.getElementById('tryit-out').hidden = true;
+        readout.textContent =
+          'That one is ' + w + ' px wide, already thumbnail size. Reducing it would average ' +
+          'single pixels, so both paths return the identical image and the comparison has ' +
+          'nothing to show. Pick a photo at least ' + (2 * TARGET) + ' px wide.';
+        return;
+      }
+
+      var outW = Math.max(1, Math.floor(w / f));
+      var outH = Math.max(1, Math.floor(h / f));
+
+      var naive = reduce(src, f, outW, outH, false);
+      var linear = reduce(src, f, outW, outH, true);
+      show(document.getElementById('tryit-naive'), naive);
+      show(document.getElementById('tryit-linear'), linear);
+      document.getElementById('tryit-out').hidden = false;
+
+      var ln = meanLuminance(naive), ll = meanLuminance(linear);
+      var pct = ll > 0 ? 100 * (1 - ln / ll) : 0;
+      var worst = 0, a = naive.data, b = linear.data;
+      for (var i = 0; i < a.length; i += 4) {
+        for (var k = 0; k < 3; k++) {
+          var d = Math.abs(a[i + k] - b[i + k]);
+          if (d > worst) worst = d;
+        }
+      }
+      /* Name the capped size the blocks were counted on, and the file's own
+         size when the two differ, so the block figure below can be checked
+         against something. */
+      var from = w === fileW
+        ? w + '×' + h
+        : w + '×' + h + ' (in light from ' + fileW + '×' + fileH + ')';
+      readout.innerHTML =
+        outW + '×' + outH + ' from ' + from + ', ' + f + '×' + f + ' blocks · ' +
+        'mean luminance <strong>' + ln.toFixed(4) + '</strong> as bytes vs. ' +
+        '<strong>' + ll.toFixed(4) + '</strong> in light · ' +
+        'the byte average is <strong>' + pct.toFixed(1) + '%</strong> darker, ' +
+        'worst channel off by <strong>' + worst + '</strong> codes';
+    }).catch(function (e) {
+      readout.textContent = 'could not read that file: ' + e;
+    });
+  });
+})();
+</script>
+<script>
+/* ── Fig. 1: the pattern at one device pixel per square ───────────────────────
+   The point of the panel is that the averaging happens in the reader's eye, so
+   the squares have to be *device* pixels, not CSS pixels. The backing store is
+   sized by devicePixelRatio and filled directly; nothing is scaled on the way
+   to the screen. Re-rendered on resize, which is also what a zoom change
+   fires. ────────────────────────────────────────────────────────────────────── */
+(function () {
+  var fine = document.getElementById('sq-fine');
+  if (!fine || !fine.getContext) return;
+
+  function paint(canvas, block) {
+    var dpr = window.devicePixelRatio || 1;
+    var css = canvas.getBoundingClientRect();
+    if (!css.width || !css.height) return;
+    var w = Math.max(1, Math.round(css.width * dpr));
+    var h = Math.max(1, Math.round(css.height * dpr));
+    canvas.width = w;
+    canvas.height = h;
+    /* Pin the CSS box to an exact multiple of device pixels. Without this the
+       element keeps its fractional percentage width, the browser resamples a
+       pattern that sits exactly at the resolution limit, and the beat between
+       the two grids shows up as moiré. */
+    canvas.style.width = (w / dpr) + 'px';
+    canvas.style.height = (h / dpr) + 'px';
+    var ctx = canvas.getContext('2d');
+    var img = ctx.createImageData(w, h);
+    var d = img.data;
+    /* `block` is the square size in device pixels: 1 for the fine panel, a
+       handful for the magnified one. */
+    for (var y = 0; y < h; y++) {
+      var by = Math.floor(y / block);
+      for (var x = 0; x < w; x++) {
+        var v = ((Math.floor(x / block) + by) % 2) ? 255 : 0;
+        var i = (y * w + x) * 4;
+        d[i] = d[i + 1] = d[i + 2] = v;
+        d[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function render() {
+    paint(fine, 1);
+  }
+
+  render();
+  var t;
+  window.addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(render, 120);
+  }, { passive: true });
+})();
+</script>
+</body>
+</html>

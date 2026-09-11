@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thomas Stephan: images, signals, and the transforms between domains</title>
+<meta name="description" content="Thomas Stephan on image and signal transforms: Fourier, wavelet, Radon, Hough, and on writing the code so a compiler knows what a number means.">
+<meta name="author" content="Thomas Stephan">
+<link rel="canonical" href="https://karhunen-loeve.github.io/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="alternate" type="application/atom+xml" href="/feed.xml" title="Type-Safe Computer Vision">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Type-Safe Computer Vision">
+<meta property="og:title" content="Thomas Stephan: images, signals, and the transforms between domains">
+<meta property="og:description" content="Image and signal transforms, and writing the code so a compiler knows what a number means.">
+<meta property="og:url" content="https://karhunen-loeve.github.io/">
+<meta property="og:image" content="https://karhunen-loeve.github.io/images/og-index.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Type-Safe Computer Vision. Three numbered bars, one per part of the series, on the dark grid of the site.">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:     #0b1418;
+    --panel:  #121e23;
+    --grid:   #16302e;
+    --grid-2: #204f49;
+    --g-fine: #102526;
+    --g-mid:  #17383a;
+    --g-coarse: #1e4a4c;
+    --phos:   #57ffcf;
+    --phos-2: #2ae0b1;
+    --amber:  #ffc166;
+    --violet: #c0a8ff;
+    --ink:    #edfffa;
+    --ink-2:  #b2d3cb;
+    --ink-3:  #82a49c;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16.5px/1.68 var(--sans); overflow-x: hidden;
+  }
+  /* three grids at once, each twice the pitch of the last and a shade
+     stronger: the background is itself a scale pyramid. It thins out down
+     the page rather than vanishing, so the prose is never sitting on it. */
+  /* Both texture layers are fixed to the viewport: the grid does not move when
+     you scroll. What moves is the text, and the tint is re-evaluated against
+     it on every scroll frame - so cells fade out as a paragraph arrives and
+     come back once it has passed. */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--g-fine) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-fine) 1px, transparent 1px),
+      linear-gradient(var(--g-mid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-mid) 1px, transparent 1px),
+      linear-gradient(var(--g-coarse) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-coarse) 1px, transparent 1px);
+    background-size:
+      100% 16px, 16px 100%,
+      100% 64px, 64px 100%,
+      100% 256px, 256px 100%;
+    /* viewport relative again, since the layer is one screen tall */
+    -webkit-mask: linear-gradient(#000 0 18%, rgba(0,0,0,.44) 70%, rgba(0,0,0,.36));
+            mask: linear-gradient(#000 0 18%, rgba(0,0,0,.44) 70%, rgba(0,0,0,.36));
+  }
+  /* the tinted cells: a canvas, because a CSS pattern is exactly periodic and
+     the whole point here is that it should not be */
+  #cells {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    /* a canvas is a replaced element: its intrinsic 300x150 wins over inset:0,
+       so the size has to be stated */
+    width: 100%; height: 100%; display: block;
+    /* drawn at half resolution: the cells are flat rectangles, so a hard 2x
+       upscale is lossless and keeps every edge on the grid */
+    image-rendering: pixelated;
+  }
+  /* grain, from one seamless turbulence tile. It sits above the grid and the
+     tints but below the text, so nothing sharpens or softens a glyph. */
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    opacity: .42;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+  main { position: relative; z-index: 2; max-width: 64rem; margin: 0 auto; padding: 0 2rem 7rem; }
+
+  /* ---------- masthead ---------- */
+  .mast {
+    display: flex; align-items: baseline; gap: 1.1rem; flex-wrap: wrap;
+    padding: 1.5rem 0 1.1rem; border-bottom: 1px solid var(--grid-2);
+    font: 600 .7rem/1 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .mast .brand {
+    color: var(--phos); font-weight: 700; letter-spacing: .26em;
+    text-shadow: 0 0 16px rgba(87,255,207,.35);
+  }
+  .mast .sp { flex: 1; }
+  .mast .eq { color: var(--ink-2); letter-spacing: .1em; text-transform: none; }
+
+  /* ---------- scale-space hero ---------- */
+  .hero { position: relative; margin: 0 -2rem 3.4rem; height: 272px; padding-top: 1.6rem; }
+  .hero canvas { display: block; width: 100%; height: calc(100% - 1.6rem); }
+  .hero p {
+    position: absolute; left: 2rem; top: 0; margin: 0;
+    font: 600 .65rem/1 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .hero p b { font-weight: 600; color: var(--phos); }
+
+  /* ---------- identity ---------- */
+  .id { display: flex; gap: 3rem; align-items: flex-start; flex-wrap: wrap; margin-bottom: 5rem; }
+  .figure { flex: none; width: 224px; display: flex; flex-direction: column;
+            gap: 1rem; align-items: center; margin: 0; }
+  .aperture { position: relative; width: 172px; height: 172px; }
+  .aperture { cursor: crosshair; }
+  .aperture:focus-visible { outline: 1px solid var(--phos); outline-offset: 8px; }
+  .aperture > img {
+    width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;
+    filter: contrast(1.05) saturate(.92);
+    border: 1px solid var(--grid-2);
+  }
+  /* The band-pass of the whole portrait, same trick as the tiles below: two
+     blurred copies differenced by the compositor. The blur pair and the gain
+     come in as custom properties, so one element can show any octave. */
+  /* Two nested boxes, and the split matters. The outer one clips to the
+     circle and applies the gain; the inner one does the differencing on a
+     plain rectangle. Doing both in one box put the blend right up against the
+     antialiased circle edge, where differencing two half-covered pixels
+     leaves a bright rim. No border of its own either: the ring is the
+     portrait's own, showing through from underneath and so outside the
+     brightness filter. */
+  .aperture .bandpass {
+    position: absolute; inset: 1px; border-radius: 50%; overflow: hidden;
+    opacity: 0; transition: opacity .3s ease;
+    filter: grayscale(1) brightness(var(--gain, 4)) contrast(1.35);
+  }
+  .aperture .bandpass .mix {
+    position: absolute; inset: 0; isolation: isolate; background: #000;
+  }
+  .aperture.climbing .bandpass { opacity: 1; }
+  .aperture .bandpass img {
+    position: absolute; inset: -22px;
+    width: calc(100% + 44px); height: calc(100% + 44px);
+    object-fit: cover; display: block;
+    transition: filter .3s ease;
+  }
+  .aperture .bandpass .lo { filter: blur(var(--lo, 4px)); }
+  .aperture .bandpass .hi { filter: blur(var(--hi, 2px)); mix-blend-mode: difference; }
+  /* the band readout, and the hint that there is something to hover */
+  .aperture .sigma {
+    position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%);
+    font: 700 .58rem/1 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--bg); background: var(--phos); border-radius: 99px;
+    padding: .28rem .6rem; white-space: nowrap;
+    opacity: 0; transition: opacity .25s ease;
+  }
+  .aperture.climbing .sigma { opacity: 1; }
+  .figure .hint {
+    font: 700 .55rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-3); opacity: .8;
+    border: 1px solid var(--grid-2); border-radius: 99px; padding: .3rem .6rem;
+    transition: color .3s ease, border-color .3s ease, opacity .3s ease;
+  }
+  .figure:hover .hint, .figure:focus-within .hint {
+    color: var(--phos); border-color: var(--phos-2); opacity: 1;
+  }
+  /* the pyramid, computed by the compositor:
+     each tile is |blur(a) - blur(b)| of the same portrait, i.e. one
+     difference-of-Gaussians band of its scale space. */
+  .pyramid { display: grid; grid-template-columns: repeat(3, 52px); gap: 8px; }
+  .lvl {
+    position: relative; width: 52px; height: 52px; overflow: hidden;
+    border-radius: 3px; background: #000;
+    border: 1px solid var(--grid-2);
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  /* the frame stays outside the filter: a brightness() on .lvl would light up
+     its own border too, and .hot would then be invisible */
+  .lvl .band { position: absolute; inset: 0; isolation: isolate; }
+  .lvl img {
+    position: absolute; inset: -12px; width: calc(100% + 24px); height: calc(100% + 24px);
+    object-fit: cover; display: block;
+  }
+  .lvl .hi { mix-blend-mode: difference; }
+  /* greyscale before the gain: the difference of two colour blurs carries
+     chroma, and multiplying that by six turns a band-pass into a bruise */
+  .lvl.s1 .band { filter: grayscale(1) brightness(6.2) contrast(1.35); }
+  .lvl.s2 .band { filter: grayscale(1) brightness(4.6) contrast(1.35); }
+  .lvl.s3 .band { filter: grayscale(1) brightness(3.2) contrast(1.35); }
+  .lvl.s1 .lo { filter: blur(2px); } .lvl.s1 .hi { filter: blur(1px); }
+  .lvl.s2 .lo { filter: blur(4px); } .lvl.s2 .hi { filter: blur(2px); }
+  .lvl.s3 .lo { filter: blur(8px); } .lvl.s3 .hi { filter: blur(4px); }
+  .lvl.hot { border-color: var(--phos); box-shadow: 0 0 0 1px var(--phos), 0 0 16px rgba(87,255,207,.4); }
+  .pyr-labels {
+    display: grid; grid-template-columns: repeat(3, 52px); gap: 8px;
+    font: 600 .55rem/1 var(--mono); letter-spacing: .06em; color: var(--ink-3); text-align: center;
+  }
+  .figure figcaption {
+    font: 600 .6rem/1.8 var(--mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); text-align: center; max-width: 224px;
+  }
+
+  .who { flex: 1 1 30ch; }
+  .who h1 {
+    font: 700 clamp(2.1rem, 5.6vw, 3.2rem)/1.05 var(--sans);
+    letter-spacing: -.035em; margin: 0 0 .5rem;
+    color: var(--ink); text-shadow: 0 0 28px rgba(87,255,207,.16);
+  }
+  .who .sub {
+    color: var(--phos); font: 600 .72rem/1.7 var(--mono); letter-spacing: .2em;
+    text-transform: uppercase; margin: 0 0 1.6rem;
+  }
+    /* The measure is set once, here, and not on the paragraphs. It used to be
+     max-width: 54ch on .who p, which made the lead paragraph 50 px wider than
+     the rest: ch resolves against each element's own font size, and the lead
+     is larger. One wrapper at the body size fixes it for good. */
+  .who .prose { max-width: 54ch; }
+  .who p { color: var(--ink-2); margin: 0 0 1.05rem; }
+    .who p em { color: var(--ink); font-style: normal; border-bottom: 1px solid var(--phos-2); }
+  .who p a {
+    color: var(--phos); text-decoration: none;
+    border-bottom: 1px solid rgba(87,255,207,.38);
+    transition: border-color .2s ease;
+  }
+  .who p a:hover, .who p a:focus-visible { border-bottom-color: var(--phos); }
+  .who .lead { color: var(--ink); font-size: 1.14rem; line-height: 1.55; }
+
+  /* ---------- sections ---------- */
+  .sec { margin-bottom: 4.4rem; }
+  .sec > h2 {
+    font: 700 1.32rem/1.3 var(--sans); letter-spacing: -.02em;
+    margin: 0 0 .5rem; color: var(--ink);
+  }
+  .sec > .kick {
+    font: 700 .62rem/1 var(--mono); letter-spacing: .2em; text-transform: uppercase;
+    color: var(--phos); margin: 0 0 .55rem;
+  }
+  .sec.pending > .kick { color: var(--ink-3); }
+  .sec > .lede { color: var(--ink-2); max-width: 62ch; margin: 0 0 2rem; font-size: .98rem; }
+  .sec > .lede em { color: var(--ink); font-style: normal; }
+
+  .card {
+    display: grid; grid-template-columns: 1fr 8.5rem; gap: 1.8rem; align-items: center;
+    background: var(--panel); border: 1px solid var(--grid-2); border-radius: 6px;
+    padding: 1.3rem 1.5rem; margin-bottom: .8rem;
+    text-decoration: none; color: inherit;
+    position: relative; overflow: hidden;
+    transition: border-color .22s, transform .22s, background .22s;
+  }
+  /* a stepped bar on the left edge: one step per octave */
+  .card::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(var(--ch, var(--phos)) 0 33%, rgba(255,255,255,.12) 33% 40%,
+                                var(--ch, var(--phos)) 40% 72%, rgba(255,255,255,.12) 72% 78%,
+                                var(--ch, var(--phos)) 78% 100%);
+    opacity: .85;
+  }
+  a.card:hover, a.card:focus {
+    border-color: var(--ch, var(--phos)); transform: translateY(-2px);
+    background: #101a1e; outline: none;
+  }
+  .card .kicker { font: 700 .6rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+                  color: var(--ink-3); display: block; margin-bottom: .5rem; }
+  .card .kicker b { color: var(--ch, var(--phos)); font-weight: 700; }
+  .card h3 { font: 700 1.16rem/1.32 var(--sans); letter-spacing: -.02em; margin: 0 0 .35rem; color: var(--ink); }
+  .card p { margin: 0 0 .5rem; color: var(--ink-2); font-size: .93rem; }
+  .card .tags { font: 600 .61rem/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+  .card .trace { width: 100%; height: 46px; overflow: visible; }
+  .card .trace path {
+    fill: none; stroke: var(--ch, var(--phos)); stroke-width: 1.5; stroke-linecap: round;
+    filter: drop-shadow(0 0 5px var(--ch, var(--phos)));
+    stroke-dasharray: 420; stroke-dashoffset: 420;
+    transition: stroke-dashoffset 1.4s cubic-bezier(.3,.7,.3,1);
+  }
+  .card.on .trace path { stroke-dashoffset: 0; }
+  .card.draft { --ch: var(--ink-3); }
+  .card.draft h3 { color: var(--ink-2); }
+  .card.draft .trace path { filter: none; opacity: .7; }
+  .card .state { color: var(--amber); font: 600 .61rem/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  .card .state.later { color: var(--ink-3); }
+
+  .rv { opacity: 0; transform: translateY(12px); transition: opacity .55s ease, transform .55s ease; }
+  .rv.on { opacity: 1; transform: none; }
+
+  footer {
+    border-top: 1px solid var(--grid-2); padding-top: 1.5rem;
+    font: 600 .68rem/2.1 var(--mono); letter-spacing: .09em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  footer a { color: var(--phos-2); text-decoration: none; }
+  footer a:hover { color: var(--phos); text-shadow: 0 0 10px rgba(87,255,207,.5); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rv { opacity: 1; transform: none; transition: none; }
+    .card .trace path { stroke-dashoffset: 0; transition: none; }
+  }
+  @media (max-width: 48rem) {
+    main { padding: 0 1.1rem 5rem; }
+    .hero { margin: 0 -1.1rem 2.2rem; height: 210px; }
+    .hero p { left: 1.1rem; }
+    .card { grid-template-columns: 1fr; gap: .7rem; }
+    .card .trace { height: 34px; }
+  }
+  /* ---------- print ---------- */
+  /* A browser leaves backgrounds out of a printout and keeps text colours,
+     and this palette is light ink on a dark ground. Printing part 2 gave a
+     PDF with 28 pure-white fills sitting on unmarked paper, so the page was
+     partly blank without ever saying so.
+
+     The fix is a palette rather than a stylesheet. Every rule on the page,
+     and every inline figure, already reads its colours from these names, so
+     redefining them turns the whole thing over at once, figures included.
+
+     The fixed texture layers and the tinted canvas go: an ornament made for
+     a screen is only toner on paper. The panning figures are let out of
+     their scroll box, since on paper a scroll box is a crop. */
+  @media print {
+    :root {
+      color-scheme: light;
+      --bg: #fff; --panel: #fff; --grid: #b4b4b4; --grid-2: #b4b4b4;
+      --g-fine: transparent; --g-mid: transparent; --g-coarse: transparent;
+      --phos: #00563f; --phos-2: #00563f; --amber: #6b3f00;
+      --violet: #3b2f70; --ink: #000; --ink-2: #1a1a1a; --ink-3: #444;
+    }
+    body { padding-left: 0; }
+    body::before, body::after, #cells { display: none; }
+    figure { overflow: visible; }
+    figure svg { min-width: 0; }
+    figure, pre, table { break-inside: avoid; }
+  }
+  /* ── browser-tools rail ── begin ──────────────────────────────────────── */
+  :root { --fv-w: 15.5rem; }
+  .fv-rail, .fv-rail-toggle, .fv-skip {
+    --fv-bg: var(--panel);
+    --fv-ink: var(--ink);
+    --fv-ink-2: var(--ink-2);
+    --fv-muted: var(--ink-3);
+    --fv-line: var(--grid-2);
+    --fv-accent: var(--phos);
+    --fv-radius: 3px;
+    --fv-font: 500 .78rem/1.5 var(--mono);
+    --fv-mono: var(--mono);
+  }
+  .fv-rail {
+    position: fixed; z-index: 60; inset: 0 auto 0 0; width: var(--fv-w);
+    display: flex; flex-direction: column; gap: .85rem;
+    padding: 1.3rem 1rem 1.1rem;
+    background: var(--fv-bg); color: var(--fv-ink); font: var(--fv-font);
+    border-right: 1px solid var(--fv-line);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .fv-rail-kicker {
+    margin: 0; font: 700 .62rem/1 var(--fv-mono); letter-spacing: .18em;
+    text-transform: uppercase; color: var(--fv-muted);
+  }
+  .fv-rail-claim {
+    margin: 0; padding: .55rem .6rem; border-radius: var(--fv-radius);
+    border: 1px solid var(--fv-line);
+    font-size: .74rem; line-height: 1.5; color: var(--fv-ink-2);
+  }
+  .fv-rail-badge {
+    display: inline-block; margin-right: .4rem;
+    font: 700 .58rem/1 var(--fv-mono); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--fv-accent); border: 1px solid currentColor; border-radius: 99px;
+    padding: .2rem .42rem; vertical-align: .06em;
+  }
+  .fv-rail-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+  .fv-rail-item {
+    display: grid; grid-template-columns: 1.35rem 1fr; gap: .55rem; align-items: start;
+    padding: .5rem .55rem; border-radius: var(--fv-radius);
+    border: 1px solid transparent; text-decoration: none; color: inherit;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  a.fv-rail-item:hover, a.fv-rail-item:focus-visible {
+    border-color: var(--fv-accent); color: var(--fv-accent); outline: none;
+  }
+  a.fv-rail-item[aria-current="page"] { border-color: var(--fv-accent); color: var(--fv-accent); }
+  .fv-rail-item svg { width: 1.35rem; height: 1.35rem; display: block; margin-top: .1rem; }
+  .fv-rail-name { display: block; font-weight: 600; }
+  .fv-rail-desc { display: block; font-size: .71rem; line-height: 1.4; color: var(--fv-muted); margin-top: .1rem; }
+  .fv-rail-item.is-planned { color: var(--fv-muted); cursor: default; }
+  .fv-rail-item.is-planned .fv-rail-name { font-weight: 500; }
+  .fv-rail-soon {
+    font: 700 .55rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--fv-muted); border: 1px solid var(--fv-line); border-radius: 99px;
+    padding: .18rem .38rem; margin-left: .35rem; vertical-align: .1em;
+  }
+  .fv-rail-foot {
+    margin: auto 0 0; padding-top: .8rem; border-top: 1px solid var(--fv-line);
+    font-size: .69rem; line-height: 1.55; color: var(--fv-muted);
+  }
+  .fv-rail-foot a { color: inherit; }
+  .fv-rail-toggle {
+    position: fixed; z-index: 61; left: .7rem; bottom: .7rem;
+    display: none; align-items: center; gap: .45rem;
+    padding: .55rem .8rem; border-radius: 99px; cursor: pointer;
+    background: var(--fv-bg); color: var(--fv-ink);
+    border: 1px solid var(--fv-line);
+    font: 700 .68rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    box-shadow: 0 4px 18px rgba(0,0,0,.35);
+  }
+  .fv-rail-toggle svg { width: .95rem; height: .95rem; }
+  /* Sits above the page and drops into view only while it has focus, which
+     is the one moment it is any use. It is inserted as the first child of
+     the body, so it is the first thing a Tab reaches. */
+  .fv-skip {
+    position: fixed; z-index: 62; top: .6rem; left: .6rem;
+    transform: translateY(-180%); transition: transform .15s ease;
+    padding: .5rem .8rem; border-radius: var(--fv-radius);
+    background: var(--fv-accent); color: var(--fv-bg);
+    font: 700 .7rem/1 var(--fv-mono); letter-spacing: .1em;
+    text-transform: uppercase; text-decoration: none;
+  }
+  .fv-skip:focus { transform: none; }
+  body { padding-left: var(--fv-w); }
+  @media (max-width: 62rem) {
+    body { padding-left: 0; }
+    /* Pushed off screen the panel was still in the tab order, so three
+       invisible links sat between the toggle and the article and the caret
+       disappeared into them. `visibility` takes it out of the order as well.
+
+       The two directions need different timing, hence the pair of rules.
+       Going out, the switch waits for the slide to finish, or the panel would
+       vanish on the spot instead of leaving. Coming in it has to be immediate:
+       with the switch left to the transition it landed a frame late, and
+       focus() on a panel that is still hidden does nothing, silently, which is
+       exactly how the first version of this failed to move the caret. */
+    .fv-rail {
+      transform: translateX(-102%);
+      transition: transform .22s ease, visibility 0s linear .22s;
+      visibility: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,.45); width: min(19rem, 84vw);
+    }
+    .fv-rail.open {
+      transform: none; visibility: visible;
+      transition: transform .22s ease, visibility 0s;
+    }
+    .fv-rail-toggle { display: inline-flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fv-rail, .fv-skip { transition: none; }
+  }
+  /* None of this belongs on paper. The panel is fixed, so a printout carried
+     it across the first page on top of the text, and the toggle and the skip
+     link are both instructions for something a sheet of paper cannot do. */
+  @media print {
+    .fv-rail, .fv-rail-toggle, .fv-skip { display: none; }
+  }
+  /* ── browser-tools rail ── end ────────────────────────────────────────── */
+</style>
+<!-- Structured data, the one description of this page a machine is actually
+     going to parse. The visible text says the same things; this says them in
+     a shape a search engine or an assistant can act on, so the page is cited
+     as an article by a named author rather than as an anonymous URL.
+     The dates carry the same placeholders as everything else and are filled
+     by stamp-dates.ps1. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://karhunen-loeve.github.io/#website",
+      "url": "https://karhunen-loeve.github.io/",
+      "name": "Type-Safe Computer Vision",
+      "description": "Image and signal transforms, and writing the code so a compiler knows what a number means.",
+      "inLanguage": "en",
+      "author": {
+        "@type": "Person",
+        "name": "Thomas Stephan",
+        "url": "https://github.com/karhunen-loeve"
+      },
+      "publisher": {
+        "@type": "Person",
+        "name": "Thomas Stephan",
+        "url": "https://github.com/karhunen-loeve"
+      }
+    },
+    {
+      "@type": "Blog",
+      "@id": "https://karhunen-loeve.github.io/#blog",
+      "url": "https://karhunen-loeve.github.io/",
+      "name": "Type-Safe Computer Vision",
+      "description": "Computer vision bugs that are really type bugs, and how a type system makes them unrepresentable.",
+      "inLanguage": "en",
+      "author": {
+        "@type": "Person",
+        "name": "Thomas Stephan",
+        "url": "https://github.com/karhunen-loeve"
+      },
+      "blogPost": [
+        "https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html",
+        "https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html"
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<canvas id="cells" aria-hidden="true"></canvas>
+<!-- browser-tools rail: begin -->
+<button class="fv-rail-toggle" type="button" aria-expanded="false" aria-controls="fv-rail">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+    <path d="M2 4h12M2 8h12M2 12h12"/>
+  </svg>
+  Tools
+</button>
+
+<nav class="fv-rail" id="fv-rail" aria-label="Browser tools">
+  <p class="fv-rail-kicker">Browser tools</p>
+  <p class="fv-rail-claim">
+    <span class="fv-rail-badge">wasm</span>
+    These run <strong>on your machine</strong>. The image you pick is decoded, measured and
+    drawn inside this tab. It is never uploaded, and the page makes no network request once
+    it has loaded.
+  </p>
+  <ul class="fv-rail-list">
+    <li>
+      <a class="fv-rail-item" href="tools/fast-corners.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M4 20V8l8-4 8 4v12"/><circle cx="12" cy="12" r="2.2"/>
+          <path d="M12 4v3.8M4 8l6 2.9M20 8l-6 2.9M12 14.2V20"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">FAST corners</span>
+          <span class="fv-rail-desc">Segment test, ranked and refined to sub-pixel</span>
+        </span>
+      </a>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">PNG chunks<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Every chunk, and which colour signal is missing</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M3 20C7 20 8 4 21 4"/><path d="M3 20h18"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">Gamma playground<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Resize in sRGB and in linear light, side by side</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name">Resize weights<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">The tap table, and whose convention it matches</span>
+        </span>
+      </span>
+    </li>
+  </ul>
+  <p class="fv-rail-foot">
+    Powered by <a href="https://github.com/karhunen-loeve/fovea">fovea</a>, a type-safe computer
+    vision crate for Rust, compiled to WebAssembly.
+    <br><a href="tools/index.html">All tools</a>
+  </p>
+</nav>
+
+<script>
+(function () {
+  var rail = document.getElementById("fv-rail");
+  var btn = document.querySelector(".fv-rail-toggle");
+  if (!rail || !btn) return;
+
+  function set(open) {
+    rail.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+  }
+
+  btn.addEventListener("click", function () {
+    var open = !rail.classList.contains("open");
+    set(open);
+    // The toggle is reached by keyboard as often as by thumb, so send the
+    // caret where the panel is, and hand it back on the way out. Without
+    // that, closing leaves focus on a link that has just gone invisible.
+    //
+    // A frame later, not straight away: until the class change has been taken
+    // into account the panel is still hidden, and focus() on something hidden
+    // does nothing at all and reports nothing either. Measured going nowhere
+    // before this was added.
+    if (open) {
+      requestAnimationFrame(function () {
+        var first = rail.querySelector("a, button");
+        if (first) first.focus();
+      });
+    } else {
+      btn.focus();
+    }
+  });
+
+  // Escape, and a press anywhere outside. The panel covers the text it sits
+  // on, and reaching back to a button in the far corner to be rid of it is a
+  // chore on a phone.
+  addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && rail.classList.contains("open")) {
+      set(false);
+      btn.focus();
+    }
+  });
+  addEventListener("pointerdown", function (e) {
+    if (!rail.classList.contains("open")) return;
+    if (rail.contains(e.target) || btn.contains(e.target)) return;
+    set(false);
+  });
+
+  // The rail comes before the article in the source, so a keyboard and a
+  // screen reader both meet the tool list before the writing. Hence a skip
+  // link, built here rather than written into the markup: it needs a target,
+  // the target lives outside this block and is named differently on every
+  // page, and a skip link pointing at nothing is worse than no skip link.
+  // Built only once a target has actually been found, so it cannot be a dud.
+  //
+  // Waiting for the document, because this block sits at the top of the body
+  // and runs while the parser is still on its way to the article. Asking for
+  // it now finds nothing, which is how the first attempt shipped no link at
+  // all. With scripting off there is no link either, which is the honest
+  // outcome: there would be nothing to give it a target.
+  function skipLink() {
+    var main = document.querySelector("article, main");
+    if (!main || !document.body) return;
+    if (!main.id) main.id = "fv-content";
+    main.tabIndex = -1;
+    var skip = document.createElement("a");
+    skip.className = "fv-skip";
+    skip.href = "#" + main.id;
+    skip.textContent = "Skip to content";
+    document.body.insertBefore(skip, document.body.firstChild);
+  }
+  if (document.readyState === "loading") {
+    addEventListener("DOMContentLoaded", skipLink);
+  } else {
+    skipLink();
+  }
+})();
+</script>
+<!-- browser-tools rail: end -->
+<main>
+
+  <div class="mast">
+    <span class="brand">Karhunen-Loeve</span>
+    <span>scale space</span>
+    <span class="sp"></span>
+    <span class="eq">sigma = 1, 2, 4, 8 px</span>
+  </div>
+
+  <div class="hero">
+    <canvas id="hero" aria-hidden="true"></canvas>
+    <p><b>one signal, four bands</b> &middot; each lane below the signal is what that band keeps</p>
+  </div>
+
+  <section class="id">
+    <figure class="figure">
+      <div class="aperture" id="aperture" tabindex="0" role="img"
+           aria-label="Portrait of Thomas Stephan; on hover, the band-pass of its scale space, one octave at a time">
+        <img src="images/profile.jpg" alt="" width="172" height="172">
+        <div class="bandpass" id="bandpass" aria-hidden="true"><div class="mix">
+          <img class="lo" src="images/profile.jpg" alt=""><img class="hi" src="images/profile.jpg" alt="">
+        </div></div>
+        <span class="sigma" id="sigma" aria-hidden="true">band 1-2 px</span>
+      </div>
+      <p class="hint">hover for the band-pass</p>
+      <div class="pyramid" aria-hidden="true">
+        <div class="lvl s1"><div class="band">
+          <img class="lo" src="images/profile.jpg" alt=""><img class="hi" src="images/profile.jpg" alt="">
+        </div></div>
+        <div class="lvl s2"><div class="band">
+          <img class="lo" src="images/profile.jpg" alt=""><img class="hi" src="images/profile.jpg" alt="">
+        </div></div>
+        <div class="lvl s3"><div class="band">
+          <img class="lo" src="images/profile.jpg" alt=""><img class="hi" src="images/profile.jpg" alt="">
+        </div></div>
+      </div>
+      <div class="pyr-labels" aria-hidden="true"><span>1-2</span><span>2-4</span><span>4-8</span></div>
+      <figcaption>the same portrait, band-passed<br>three octaves of its scale space</figcaption>
+    </figure>
+
+    <div class="who">
+      <h1>Thomas Stephan</h1>
+      <p class="sub">images &middot; signals &middot; the transforms between domains</p>
+
+            <div class="prose">
+      <p class="lead">At night I see transformations. Some of them are still useful in
+        the morning.</p>
+
+      <p>I like the transforms that carry a picture out of the domain it was measured in
+        and into one where the thing you were looking for is finally obvious, where it is
+        a single bright coefficient instead of ten thousand faint ones. A straight line in
+        an image is hard to find. A point in Hough space is not. A blur is a hard operation
+        to undo. A division in the Fourier domain is not. That last one is a lie, and I
+        take it back in
+        <a href="#exact-deconvolution">The Illusion of Exact Deconvolution</a>. Fourier,
+        wavelet, Radon, Hough: each one moves a hard question into a space where it is
+        easy, and then hands the answer back to where it came from.</p>
+
+      <p>Every imaging system convolves, whether you asked it to or not: a lens, a sensor,
+        a hand that moved. The Fourier transform is nothing more mysterious than the
+        eigenbasis of that operator. Change coordinates and the smearing turns into a
+        multiplication. None of this is a trick to memorise. It is what you get when you
+        stop describing an operator and start diagonalising it.</p>
+
+      <p>The rest is making it survive contact with code. Rust now, C++ before it. I want
+        the type of a value to carry what the value <em>means</em>: which grid, which units,
+                which curve it has already been through. Then a mismatch is a compile error and not
+        an image that looks a bit off.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <p class="kick">published</p>
+    <h2>Hardening computer vision with a proper type system</h2>
+    <p class="lede">Three classic bugs that have each cost the field twenty years. None of
+      them is a logic bug. Every one is a <em>type</em> bug: correct functions exchanging
+      values whose meaning was never written down.</p>
+
+    <a class="card rv" style="--ch:var(--phos)" href="01-rgb-bgr-the-blue-face-bug.html">
+      <div>
+        <span class="kicker">part <b>01</b> &middot; beginner</span>
+        <h3>The Blue Face Bug</h3>
+        <p>Your camera says blue-green-red. Your model says red-green-blue. The bytes in between say nothing at all.</p>
+        <span class="tags">Bgr8 &middot; ColorSwap</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0,23 H18 V7 H38 V39 H58 V7 H78 V39 H98 V23 H120"></path>
+      </svg>
+    </a>
+
+    <a class="card rv" style="--ch:var(--amber)" href="02-gamma-blind-interpolation.html">
+      <div>
+        <span class="kicker">part <b>02</b> &middot; beginner</span>
+        <h3>128 Is Not the Middle</h3>
+        <p>Average a black pixel and a white pixel. Your resize code says 128.
+          The value that actually looks halfway is nearer 188.</p>
+        <span class="tags">Srgb8 &middot; SrgbGamma</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0,42 C22,41 34,36 46,26 C58,16 70,8 88,5 C100,3.5 110,3 120,3"></path>
+      </svg>
+    </a>
+
+    <div class="card draft rv">
+      <div>
+        <span class="kicker">part <b>03</b> &middot; intermediate</span>
+        <h3>Climbing the Pyramid</h3>
+        <p>Sizes that stop matching, two &ldquo;scales&rdquo; that are not the same thing, and coordinates that quietly drift half a pixel per step.</p>
+        <span class="state">in review</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0,40 L14,10 L28,40 L42,14 L56,40 L70,19 L84,40 L98,25 L112,40 L120,32"></path>
+      </svg>
+    </div>
+  </section>
+
+  <section class="sec pending">
+    <p class="kick">coming</p>
+    <h2>At night I see transformations</h2>
+    <p class="lede">The transform series. No dates: each one goes live when it is finished.</p>
+
+        <div class="card draft rv">
+      <div>
+        <span class="kicker">transforms</span>
+                <h3>Fourier Is the Eigenbasis of Convolution</h3>
+        <p>Convolution has eigenfunctions, and they turn out to be the complex
+          exponentials. Every property of the transform that looks like a coincidence
+          follows from that one fact.</p>
+        <span class="state">in writing</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0,23 C10,4 20,4 30,23 C40,42 50,42 60,23 C70,4 80,4 90,23 C100,42 110,42 120,23"></path>
+      </svg>
+    </div>
+
+        <div class="card draft rv" id="exact-deconvolution">
+      <div>
+        <span class="kicker">transforms</span>
+        <h3>The Illusion of Exact Deconvolution</h3>
+        <p>Divide by the transfer function and the blur comes out. So does the noise,
+          without bound, wherever the transfer function is small. Why the clean inverse
+          exists only on paper, and what you reach for instead.</p>
+        <span class="state later">planned</span>
+      </div>
+      <svg class="trace" viewBox="0 0 120 46" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M0,40 C24,39 44,36 62,30 C78,25 90,17 100,9 C106,4 112,1 118,0"></path>
+      </svg>
+    </div>
+
+      </section>
+
+    <footer>
+    Thomas Stephan &middot; <a href="https://github.com/karhunen-loeve">github.com/karhunen-loeve</a><br>
+    Built on <a href="https://github.com/karhunen-loeve/fovea">fovea</a> &middot;
+    <a href="https://crates.io/crates/fovea">crates.io</a> &middot;
+    <a href="https://docs.rs/fovea">docs.rs</a> &middot;
+    <a href="feed.xml">atom feed</a><br>
+    A personal project. Everything here is my own opinion.
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var rv = document.querySelectorAll('.rv');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); }
+      });
+    }, { threshold: .2, rootMargin: '0px 0px -8% 0px' });
+    rv.forEach(function (e) { io.observe(e); });
+  } else {
+    rv.forEach(function (e) { e.classList.add('on'); });
+  }
+
+  // ---- the hero: a real 1-D scale space --------------------------------
+  // The top lane is a signal. Each lane below it is one difference-of-
+  // Gaussians band of that same signal: smooth with a binomial kernel a
+  // few more times, subtract, amplify. Nothing here is drawn by hand.
+  var cv = document.getElementById('hero');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var W = 0, H = 0, dpr = Math.min(devicePixelRatio || 1, 2);
+  var still = false;   // reduced motion: one static frame, but redraw on resize
+
+  var N = 768;
+  var sig = new Float64Array(N);
+  var lv = [];                 // lv[0] = signal, lv[i] = successively smoothed
+  for (var i = 0; i < 5; i++) lv.push(new Float64Array(N));
+  var tmp = new Float64Array(N);
+
+  // k passes of the binomial [1,2,1]/4 give variance k/2, so sigma = sqrt(k/2).
+  // These pass counts are chosen so sigma really doubles: 1, 2, 4, 8 px.
+  var PASSES = [0, 2, 8, 32, 128];
+  var LABEL  = ['signal', 'sigma 0-1', 'sigma 1-2', 'sigma 2-4', 'sigma 4-8'];
+  var GUT = 78;                     // a left gutter, so the lanes can be named
+  var COL  = ['87,255,207', '87,255,207', '255,193,102', '192,168,255', '130,164,156'];
+  var GAIN = [0.85, 3.4, 2.8, 3.0, 4.5];
+
+  function size() {
+    var r = cv.getBoundingClientRect();
+    W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (still) draw();
+  }
+  size();
+  addEventListener('resize', size);
+
+  function bump(x, c, w) { var d = (x - c) / w; return Math.exp(-d * d); }
+
+  function build(t) {
+    var ph = t * 0.00006;
+    for (var n = 0; n < N; n++) {
+      var u = n / N;
+      var v = 0;
+      v += 0.85 * bump(u, 0.12 + 0.03 * Math.sin(ph * 3), 0.045);      // a wide feature
+      v -= 0.60 * bump(u, 0.30, 0.016);                                // a narrow one
+      v += (u > 0.46 && u < 0.62) ? 0.7 : 0;                           // a step
+      v += 0.45 * bump(u, 0.74, 0.03) * Math.cos(2 * Math.PI * 26 * u + ph * 40); // a burst
+      v += 0.18 * Math.sin(2 * Math.PI * 61 * u + ph * 90);            // fine texture
+      v += 0.10 * Math.sin(2 * Math.PI * 7 * u - ph * 12);             // slow sway
+      sig[n] = v;
+    }
+    lv[0].set(sig);
+    for (var k = 1; k < lv.length; k++) {
+      lv[k].set(lv[k - 1]);
+      var extra = PASSES[k] - PASSES[k - 1];
+      for (var p = 0; p < extra; p++) {
+        for (var m = 0; m < N; m++) {
+          var a = lv[k][m > 0 ? m - 1 : 1];
+          var b = lv[k][m];
+          var c = lv[k][m < N - 1 ? m + 1 : N - 2];
+          tmp[m] = 0.25 * a + 0.5 * b + 0.25 * c;
+        }
+        lv[k].set(tmp);
+      }
+    }
+  }
+
+  function lane(idx, total) {
+    var top = 8, bot = H - 8;
+    var h = (bot - top) / total;
+    return { mid: top + h * (idx + 0.5), amp: h * 0.46 };
+  }
+
+  function label(idx, total, col) {
+    var L = lane(idx, total);
+    ctx.font = '600 9.5px ' + 'ui-monospace, Consolas, monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(' + col + ',0.8)';
+    ctx.fillText(LABEL[idx].toUpperCase(), GUT - 12, L.mid);
+  }
+
+  function stroke(vals, idx, total, col, gain, width, glow) {
+    var L = lane(idx, total);
+    ctx.beginPath();
+    var span = Math.max(1, W - GUT);
+    for (var x = GUT; x <= W; x++) {
+      var n = Math.min(N - 1, Math.floor((x - GUT) / span * N));
+      var y = L.mid - vals[n] * gain * L.amp;
+      if (y < L.mid - L.amp) y = L.mid - L.amp;
+      if (y > L.mid + L.amp) y = L.mid + L.amp;
+      if (x === GUT) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(' + col + ',0.92)';
+    ctx.lineWidth = width;
+    ctx.shadowColor = 'rgba(' + col + ',0.75)';
+    ctx.shadowBlur = glow;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  var band = new Float64Array(N);
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    var total = 5;
+
+    // lane 0: the signal
+    stroke(lv[0], 0, total, COL[0], 0.85, 1.5, 11);
+    label(0, total, '237,255,250');
+
+    // lanes 1..4: the difference-of-Gaussians bands
+    for (var k = 1; k < 5; k++) {
+      for (var n = 0; n < N; n++) band[n] = lv[k - 1][n] - lv[k][n];
+      stroke(band, k, total, COL[k], GAIN[k], 1.3, 8);
+      // the zero line of each band
+      var L = lane(k, total);
+      ctx.strokeStyle = 'rgba(26,66,61,0.8)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(GUT, Math.round(L.mid) + .5); ctx.lineTo(W, Math.round(L.mid) + .5); ctx.stroke();
+      label(k, total, COL[k]);
+    }
+
+    // the gutter rule, so the names read as an axis and not as floating text
+    ctx.strokeStyle = 'rgba(26,66,61,0.9)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(GUT - 6.5, 6); ctx.lineTo(GUT - 6.5, H - 6); ctx.stroke();
+  }
+
+  if (reduce) { build(0); still = true; draw(); return; }
+  (function loop(t) { build(t); draw(); requestAnimationFrame(loop); })(0);
+})();
+</script>
+<script>
+/* ---------------------------------------------------------------------------
+   Hovering the portrait band-passes it, one octave at a time: the difference
+   between two blurred copies of the same picture, which is the same thing the
+   three tiles below show. The tile for the octave on screen lights up with it,
+   so the big circle and the small ones always agree.
+
+   The blur is the browser's, so the bands are really computed: no pixels are
+   read back, and this still works from a file:// URL.
+--------------------------------------------------------------------------- */
+(function () {
+  var ap = document.getElementById('aperture');
+  var out = document.getElementById('sigma');
+  if (!ap || !out) return;
+
+  var tiles = [].slice.call(document.querySelectorAll('.pyramid .lvl'));
+
+  // One entry per tile below, same blur pairs and same gains, so the circle
+  // and the tile that lights up are showing the identical band.
+  var BANDS = [
+    { lo: 2,  hi: 1, gain: 5.6, label: 'band 1-2 px' },
+    { lo: 4,  hi: 2, gain: 4.4, label: 'band 2-4 px' },
+    { lo: 8,  hi: 4, gain: 3.2, label: 'band 4-8 px' }
+  ];
+  var STEP = 1000;
+  var still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var i = 0, timer = null;
+
+  function show(k) {
+    var b = BANDS[k];
+    ap.style.setProperty('--lo', b.lo + 'px');
+    ap.style.setProperty('--hi', b.hi + 'px');
+    ap.style.setProperty('--gain', b.gain);
+    out.textContent = b.label;
+    for (var n = 0; n < tiles.length; n++) tiles[n].classList.toggle('hot', n === k);
+  }
+
+  function start() {
+    ap.classList.add('climbing');
+    // reduced motion: show the middle octave and hold it, no cycling
+    if (still) { show(1); return; }
+    if (timer) return;
+    i = 0; show(0);
+    timer = setInterval(function () { i = (i + 1) % BANDS.length; show(i); }, STEP);
+  }
+
+  function stop() {
+    clearInterval(timer); timer = null;
+    ap.classList.remove('climbing');
+    for (var n = 0; n < tiles.length; n++) tiles[n].classList.remove('hot');
+  }
+
+  ap.addEventListener('mouseenter', start);
+  ap.addEventListener('mouseleave', stop);
+  ap.addEventListener('focus', start);
+  ap.addEventListener('blur', stop);
+})();
+</script>
+<script>
+/* ---------------------------------------------------------------------------
+   A few cells of the grid, tinted.
+
+   Three things keep it from looking machine-made. The tinting is multi-scale,
+   like the grid it sits on: mostly 16 px cells, some 32, rarely a 64 px block,
+   each fainter as it gets larger. Every cell's alpha is drawn from a range
+   rather than fixed. And the probability of a cell being tinted is modulated
+   by a slow lumpy field, so the cells clump and leave bare patches instead of
+   scattering evenly - an even scatter is what reads as wallpaper.
+
+   The seed is fixed and the lattice is anchored to the viewport, so which
+   cells exist never changes and the grid does not move when you scroll. The
+   fill is inset by a pixel, so the grid lines underneath survive.
+
+   Nothing is tinted where you read. The text boxes are measured in the DOM and
+   every cell's alpha is scaled by its clearance from the nearest one, with a
+   100 px shoulder. Since the layer is fixed and the text is not, that clearance
+   changes as you scroll: a cell fades out as a paragraph arrives and fades
+   back in once it has passed. The texture reacts to what is on top of it.
+--------------------------------------------------------------------------- */
+(function () {
+  var cv = document.getElementById('cells');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // A coloured tint on a dark ground has no middle setting: too faint and it
+  // is merely "a bit lighter", too strong and it is a flat block. So the
+  // cells are sparse and properly coloured rather than many and muddy.
+  //
+  // k is a per-colour gain. Amber is a warm hue on a cold ground, so at the
+  // alpha the others use it turns olive-brown; it is the rarest of the three
+  // and gets to be stronger when it does appear.
+  var COLS = [
+    { c: '87,255,207',  w: .58, k: 1.00 },   // mint
+    { c: '192,168,255', w: .30, k: 1.15 },   // violet
+    { c: '255,193,102', w: .12, k: 1.90 }    // amber
+  ];
+  var LEVELS = [
+    { cell: 16, p: .0145, lo: .055, hi: .150 },
+    { cell: 32, p: .0040, lo: .035, hi: .085 },
+    { cell: 64, p: .0012, lo: .020, hi: .045 }
+  ];
+
+  function lump(x, y) {
+    return 0.5 + 0.5 * (
+      0.55 * Math.sin(x / 260 + 1.3) * Math.cos(y / 310 - 0.7) +
+      0.30 * Math.sin(x /  95 - 2.1) * Math.cos(y / 130 + 1.9) +
+      0.15 * Math.sin((x + y) / 170)
+    );
+  }
+
+  // Every block whose text sits straight on the background. Cards are absent
+  // on purpose: their panel is opaque, so it hides the tint behind it anyway.
+  var READ = [
+    '.mast', '.hero p',
+    '.who h1', '.who .sub', '.who p',
+    '.figure figcaption', '.pyr-labels', '.figure .hint',
+    '.sec > .kick', '.sec > h2', '.sec > .lede',
+    'footer'
+  ];
+  var FEATHER = 100;  // px of soft shoulder around each block. It doubles as
+                      // the length over which a cell fades as you scroll past
+                      // it, which is why it is this wide: at 44 px a cell went
+                      // from nothing to full inside a single wheel step, and
+                      // that reads as a blink rather than a fade. Widening it
+                      // costs about 8 per cent of the cells.
+  var QUIET = 0;      // what survives under the text; raise it to keep a trace
+  var SCALE = 2;      // one canvas pixel per two CSS pixels
+
+  // The text boxes are held in DOCUMENT coordinates and measured only when the
+  // layout can have changed. Reading 21 rects on every scroll frame would
+  // force a layout each time; subtracting the scroll offset costs nothing.
+  var boxes = [];
+
+  function measure() {
+    var sx = scrollX, sy = scrollY;
+    boxes = [];
+    for (var i = 0; i < READ.length; i++) {
+      var els = document.querySelectorAll(READ[i]);
+      for (var j = 0; j < els.length; j++) {
+        var r = els[j].getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        boxes.push({ l: r.left + sx, t: r.top + sy, r: r.right + sx, b: r.bottom + sy });
+      }
+    }
+  }
+
+  // Clearance from the cell's whole rectangle, not from its centre. A 64 px
+  // cell can have a centre well clear of a paragraph and still cover its
+  // first two lines; measuring the centre let exactly that through.
+  function damp(cl, ct, cr, cb, sx, sy) {
+    var best = Infinity;
+    for (var i = 0; i < boxes.length; i++) {
+      var q = boxes[i];
+      var ql = q.l - sx, qt = q.t - sy, qr = q.r - sx, qb = q.b - sy;
+      var dx = cl > qr ? cl - qr : (ql > cr ? ql - cr : 0);
+      var dy = ct > qb ? ct - qb : (qt > cb ? qt - cb : 0);
+      var d = dx && dy ? Math.sqrt(dx * dx + dy * dy) : (dx || dy);
+      if (d < best) { best = d; if (best === 0) return QUIET; }
+    }
+    if (best >= FEATHER) return 1;
+    var t = best / FEATHER;
+    return QUIET + (1 - QUIET) * (t * t * (3 - 2 * t));   // smoothstep
+  }
+
+  // A slow, per-cell brightness wobble driven by the scroll position.
+  //
+  // The phase and the rate come from a position hash rather than from the
+  // PRNG: drawing them from the stream would shift every later draw and
+  // rearrange the whole pattern. Each cell therefore keeps its own phase for
+  // good, and neighbours drift apart instead of breathing in unison.
+  //
+  // It is a function of the scroll offset and nothing else, so it holds still
+  // the moment you stop scrolling. Nothing here animates on its own.
+  var WOBBLE = .26;    // peak deviation, so roughly plus or minus a quarter
+  var PITCH = 1200;    // px of scroll for one cycle, before the per-cell rate.
+                       // Deep and slow: the two together set how fast it
+                       // changes as you scroll, and that rate is WOBBLE/PITCH,
+                       // so the longer pitch more than cancels the bigger
+                       // amplitude. Over a short scroll it is calmer than
+                       // before; over a long one the swing is wider.
+
+  function hash(x, y, k) {
+    var h = Math.sin(x * 12.9898 + y * 78.233 + k * 37.719) * 43758.5453;
+    return h - Math.floor(h);
+  }
+
+  function wobble(x, y, sy) {
+    var phase = hash(x, y, 1) * 6.2831853;
+    var rate = 0.7 + hash(x, y, 2) * 0.7;          // 0.7x to 1.4x the pitch
+    return 1 + WOBBLE * Math.sin(sy / (PITCH * rate) * 6.2831853 + phase);
+  }
+
+  function pick(r) {
+    var acc = 0;
+    for (var i = 0; i < COLS.length; i++) { acc += COLS[i].w; if (r <= acc) return COLS[i]; }
+    return COLS[0];
+  }
+
+  function draw() {
+    var box = cv.getBoundingClientRect();
+    var CW = Math.max(1, Math.round(box.width)), CH = Math.max(1, Math.round(box.height));
+    var bw = Math.ceil(CW / SCALE), bh = Math.ceil(CH / SCALE);
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    ctx.clearRect(0, 0, bw, bh);
+
+    // The lattice, the clumping field and the seed are all anchored to the
+    // viewport, so which cells exist never changes. Only how much of each one
+    // survives does, and that is what the scrolling text decides.
+    var sx = scrollX, sy = scrollY;
+    var rnd = mulberry32(0x5eed1a17);
+
+    for (var L = 0; L < LEVELS.length; L++) {
+      var lv = LEVELS[L], c = lv.cell / SCALE;
+      for (var y = 0; y < CH; y += lv.cell) {
+        for (var x = 0; x < CW; x += lv.cell) {
+          if (rnd() > lv.p * (0.15 + 2.3 * lump(x, y))) continue;
+          var a = lv.lo + rnd() * (lv.hi - lv.lo);
+          var col = pick(rnd());
+          var g = damp(x, y, x + lv.cell, y + lv.cell, sx, sy);
+          if (g < .04) continue;
+          // ceiling tracks the wobble so the peaks are not clipped:
+          // the brightest amber reaches .285 x 1.26
+          var alpha = Math.min(.36, a * col.k * g * wobble(x, y, sy));
+          ctx.fillStyle = 'rgba(' + col.c + ',' + alpha.toFixed(3) + ')';
+          ctx.fillRect(x / SCALE + 1, y / SCALE + 1, c - 2, c - 2);
+        }
+      }
+    }
+  }
+
+  measure();
+  draw();
+
+  // That first measurement runs while the page can still grow: images and
+  // fonts are not in yet, and a panel that ships as `hidden` only appears when
+  // its own script runs. Any later change in height moves the text away from
+  // the holes cut for it, which shows up as background cells sitting behind
+  // paragraphs further down the page. So measure again whenever the document
+  // can have changed size. Re-measuring only paints, it never reflows, so
+  // observing the body cannot feed itself.
+  function remeasure() { measure(); draw(); }
+  addEventListener('load', remeasure);
+  if (window.ResizeObserver && document.body) {
+    var rt = null;
+    new ResizeObserver(function () {
+      clearTimeout(rt);
+      rt = setTimeout(remeasure, 80);
+    }).observe(document.body);
+  }
+
+  var queued = false;
+  addEventListener('scroll', function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; draw(); });
+  }, { passive: true });
+
+  var t = null;
+  addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(function () { measure(); draw(); }, 150);
+  });
+})();
+</script>
+</body>
+</html>

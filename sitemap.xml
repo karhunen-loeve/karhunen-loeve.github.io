@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The dates carry the same @@DATE@@ placeholders as the posts and the feed,
+     and stamp-dates.ps1 fills all three files in one run. A sitemap with a
+     wrong lastmod is worse than none. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+  <url>
+    <loc>https://karhunen-loeve.github.io/</loc>
+    <lastmod>2026-09-11T12:00:00Z</lastmod>
+  </url>
+
+  <url>
+    <loc>https://karhunen-loeve.github.io/01-rgb-bgr-the-blue-face-bug.html</loc>
+    <lastmod>2026-09-11T12:00:00Z</lastmod>
+  </url>
+
+  <url>
+    <loc>https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html</loc>
+    <lastmod>2026-09-11T12:00:00Z</lastmod>
+  </url>
+
+  <url>
+    <loc>https://karhunen-loeve.github.io/tools/</loc>
+    <lastmod>2026-09-11T12:00:00Z</lastmod>
+  </url>
+
+  <url>
+    <loc>https://karhunen-loeve.github.io/tools/fast-corners.html</loc>
+    <lastmod>2026-09-11T12:00:00Z</lastmod>
+  </url>
+
+</urlset>

@@ -1,0 +1,12 @@
+# Everything here is meant to be read, indexed and quoted. A missing
+# robots.txt already means that, so this file exists for one reason: to name
+# the sitemap. Kept anyway, because the absence of the file is indistinguishable
+# from having forgotten it.
+#
+# Nothing is excluded. If that ever changes, note that this file is a request
+# and not a fence: well-behaved crawlers honour it and the rest do not.
+
+User-agent: *
+Allow: /
+
+Sitemap: https://karhunen-loeve.github.io/sitemap.xml
