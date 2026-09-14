@@ -128,9 +128,31 @@
   figure { margin: 1.8rem 0; overflow-x: auto; overscroll-behavior-x: contain; }
   figure svg { display: block; width: 100%; min-width: 38rem; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
   figcaption { position: sticky; left: 0; color: var(--muted); font-size: .85rem; margin-top: .55rem; line-height: 1.5; }
+  /* A code block wider than its box scrolls sideways, and on a phone that is
+     most of them. Scrollbars there are overlays that fade out, so without a
+     cue the block simply ends mid-token. The cue is a faint band of accent
+     at whichever edge has more content beyond it, drawn with background
+     layers alone: two bands that stay put in the box, and over them two
+     covers in the block's own colour that scroll with the content. At the
+     start the left cover hides the left band; the right cover sits at the
+     far end of the content, out of view until the block is scrolled there,
+     when it hides the right band. A block that fits shows neither. */
   pre {
-    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    background:
+      linear-gradient(90deg, var(--code-bg) 55%, transparent) 0 0 / 3rem 100%,
+      linear-gradient(270deg, var(--code-bg) 55%, transparent) 100% 0 / 3rem 100%,
+      linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent) 0 0 / 1.6rem 100%,
+      linear-gradient(270deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent) 100% 0 / 1.6rem 100%;
+    background-color: var(--code-bg);
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll;
+    border: 1px solid var(--border); border-radius: 10px;
     padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.6;
+  }
+  @media screen and (max-width: 40.5rem) {
+    /* Comments and compiler messages are prose, so on a phone they wrap like
+       prose. The code lines stay whole, and the block still scrolls for them. */
+    pre .cmt, pre .err { white-space: pre-wrap; }
   }
   code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
   p > code, li > code { background: var(--code-bg); border-radius: 4px; padding: .08em .35em; font-size: .85em; }
@@ -167,6 +189,38 @@
     margin: .4rem 0 0; color: var(--ink-2);
   }
   @media (max-width: 34rem) { .pair { grid-template-columns: 1fr; } }
+
+  /* ---------- Fig. 1 on a phone ----------
+     Below 38rem the drawings pan, and for this one figure that crops the one
+     thing it exists to show: the two swatches next to each other. The figure
+     is only three boxes, two swatches and their labels, so where the drawing
+     would start to pan it gives way to the same content laid out top to
+     bottom in HTML. Real text at rem sizes never gets too small, and the
+     colours come from the same variables as the rest of the page, so the
+     print palette needs nothing extra. The switch is `screen` only: paper is
+     wide, and the print rules already let the drawing out of its scroll box.
+
+     40.5rem is the drawing's 38rem plus the article's 1.25rem of padding on
+     either side: the viewport width at which the scroll box would first move,
+     so there is no band where the drawing pans although the stack exists. */
+  .fig-narrow { display: none; }
+  @media screen and (max-width: 40.5rem) {
+    .fig-wide { display: none; }
+    .fig-narrow {
+      display: block; padding: 1.1rem 1rem 1rem; text-align: center;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    }
+    .fig-narrow .fig-title { margin: 0 0 .9rem; font-weight: 600; font-size: .95rem; }
+    .fig-narrow .bytes {
+      display: flex; justify-content: center; gap: .4rem; margin: 0 0 1.1rem;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 1rem;
+    }
+    .fig-narrow .bytes span { padding: .45rem .9rem; border: 1.5px solid var(--hairline); border-radius: 6px; }
+    .fig-narrow .swatch { height: 52px; border-radius: 8px; }
+    .fig-narrow .read { margin: .5rem 0 1.1rem; color: var(--ink-2); font-size: .85rem; }
+    .fig-narrow .read:last-child { margin-bottom: 0; }
+    .fig-narrow .read code { font-weight: 600; background: none; padding: 0; font-size: .95em; }
+  }
 
   /* ---------- print ---------- */
   /* A browser leaves backgrounds out of a printout and keeps text colours,
@@ -530,7 +584,7 @@
 <p>Here is a pixel. Three bytes, and nothing else:</p>
 
 <figure>
-<svg viewBox="0 0 680 210" role="img" aria-label="The same three bytes 224, 172, 105 shown as a warm skin tone when read as RGB, and as light blue when read as BGR">
+<svg class="fig-wide" viewBox="0 0 680 210" role="img" aria-label="The same three bytes 224, 172, 105 shown as a warm skin tone when read as RGB, and as light blue when read as BGR">
   <text x="340" y="30" text-anchor="middle" class="svg-ink" font-size="15" font-weight="600">the same three bytes in memory</text>
   <g class="mono" font-size="16">
     <rect x="235" y="45" width="70" height="38" rx="6" fill="none" stroke="var(--hairline)" stroke-width="1.5"/>
@@ -552,6 +606,19 @@
     <text x="530" y="200" text-anchor="middle" class="svg-ink2" font-size="13">read as <tspan class="mono" font-weight="600">BGR</tspan> → smurf</text>
   </g>
 </svg>
+<!-- The same figure for a phone column, see the Fig. 1 rules in the style
+     block. Only one of the two is displayed at any width, and display: none
+     takes the other out of the accessibility tree as well, so this copy
+     carries the drawing's accessible name and the figure is read once
+     whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="The same three bytes 224, 172, 105 shown as a warm skin tone when read as RGB, and as light blue when read as BGR">
+  <p class="fig-title">the same three bytes in memory</p>
+  <p class="bytes"><span>224</span><span>172</span><span>105</span></p>
+  <div class="swatch" style="background: rgb(224,172,105)"></div>
+  <p class="read">read as <code>RGB</code> → skin</p>
+  <div class="swatch" style="background: rgb(105,172,224)"></div>
+  <p class="read">read as <code>BGR</code> → smurf</p>
+</div>
 <figcaption>Fig. 1. <code>[224, 172, 105]</code>. Interpreted as R-G-B, it is a warm skin tone. Interpreted as B-G-R, the red and blue channels trade places and the same bytes turn ice-blue. The memory is identical. Only the <em>meaning</em> changed.</figcaption>
 </figure>
 
