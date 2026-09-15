@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b1418">
 <title>Thomas Stephan: images, signals, and the transforms between domains</title>
 <meta name="description" content="Thomas Stephan on image and signal transforms: Fourier, wavelet, Radon, Hough, and on writing the code so a compiler knows what a number means.">
 <meta name="author" content="Thomas Stephan">
@@ -163,6 +164,12 @@
     opacity: 0; transition: opacity .25s ease;
   }
   .aperture.climbing .sigma { opacity: 1; }
+  /* the hint names the gesture the device actually has */
+  .figure .hint .on-tap { display: none; }
+  @media (hover: none) {
+    .figure .hint .on-hover { display: none; }
+    .figure .hint .on-tap { display: inline; }
+  }
   .figure .hint {
     font: 700 .55rem/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
     color: var(--ink-3); opacity: .8;
@@ -305,9 +312,24 @@
   @media (max-width: 48rem) {
     main { padding: 0 1.1rem 5rem; }
     .hero { margin: 0 -1.1rem 2.2rem; height: 210px; }
-    .hero p { left: 1.1rem; }
+    .hero p { left: 1.1rem; right: 1.1rem; }
     .card { grid-template-columns: 1fr; gap: .7rem; }
     .card .trace { height: 34px; }
+  }
+  /* Below 35rem the identity block has already stacked: the portrait column
+     is no longer beside the prose, so it can be centred without disturbing
+     the two-column layout a tablet still gets. */
+  @media (max-width: 35rem) {
+    /* at 320 px the caption ran to three lines and the third sat on the
+       first lane of the plot */
+    .hero p .tail { display: none; }
+    /* the portrait column is 224px wide in a 355px page, so it sat left of
+       centre. Full width puts its own align-items: center to work. */
+    .figure { width: 100%; }
+    .id { gap: 2rem; }
+    /* the name and the strapline centre over the portrait; the prose does
+       not, since centred body text is harder to read */
+    .who h1, .who .sub { text-align: center; }
   }
   /* ---------- print ---------- */
   /* A browser leaves backgrounds out of a printout and keeps text colours,
@@ -408,6 +430,15 @@
     box-shadow: 0 4px 18px rgba(0,0,0,.35);
   }
   .fv-rail-toggle svg { width: .95rem; height: .95rem; }
+  /* The toggle is fixed over the text, so on a phone it sits on a line or
+     two of whatever is being read. It steps out of the way while the page
+     scrolls down and comes back on the way up, which is the moment someone
+     is looking for it. And it clears the home bar. */
+  .fv-rail-toggle {
+    bottom: calc(.7rem + env(safe-area-inset-bottom, 0px));
+    transition: transform .2s ease, opacity .2s ease;
+  }
+  .fv-rail-toggle.is-away { transform: translateY(180%); opacity: 0; }
   /* Sits above the page and drops into view only while it has focus, which
      is the one moment it is any use. It is inserted as the first child of
      the body, so it is the first thing a Tab reaches. */
@@ -446,7 +477,7 @@
     .fv-rail-toggle { display: inline-flex; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .fv-rail, .fv-skip { transition: none; }
+    .fv-rail, .fv-skip, .fv-rail-toggle { transition: none; }
   }
   /* None of this belongs on paper. The panel is fixed, so a printout carried
      it across the first page on top of the text, and the toggle and the skip
@@ -624,6 +655,19 @@
     set(false);
   });
 
+  // Hide on the way down, show on the way up. The threshold keeps it from
+  // flickering on the small scroll a tap can produce, and an open panel
+  // never loses its own button.
+  var lastY = scrollY, away = false;
+  addEventListener('scroll', function () {
+    var y = scrollY;
+    if (Math.abs(y - lastY) < 8) return;
+    var down = y > lastY && y > 80;
+    lastY = y;
+    if (rail.classList.contains("open")) return;
+    if (down !== away) { away = down; btn.classList.toggle("is-away", down); }
+  }, { passive: true });
+
   // The rail comes before the article in the source, so a keyboard and a
   // screen reader both meet the tool list before the writing. Hence a skip
   // link, built here rather than written into the markup: it needs a target,
@@ -666,20 +710,20 @@
 
   <div class="hero">
     <canvas id="hero" aria-hidden="true"></canvas>
-    <p><b>one signal, four bands</b> &middot; each lane below the signal is what that band keeps</p>
+    <p><b>one signal, four bands</b><span class="tail"> &middot; each lane below the signal is what that band keeps</span></p>
   </div>
 
   <section class="id">
     <figure class="figure">
       <div class="aperture" id="aperture" tabindex="0" role="img"
-           aria-label="Portrait of Thomas Stephan; on hover, the band-pass of its scale space, one octave at a time">
+           aria-label="Portrait of Thomas Stephan; activate it for the band-pass of its scale space, one octave at a time">
         <img src="images/profile.jpg" alt="" width="172" height="172">
         <div class="bandpass" id="bandpass" aria-hidden="true"><div class="mix">
           <img class="lo" src="images/profile.jpg" alt=""><img class="hi" src="images/profile.jpg" alt="">
         </div></div>
         <span class="sigma" id="sigma" aria-hidden="true">band 1-2 px</span>
       </div>
-      <p class="hint">hover for the band-pass</p>
+      <p class="hint"><span class="on-hover">hover</span><span class="on-tap">tap</span> for the band-pass</p>
       <div class="pyramid" aria-hidden="true">
         <div class="lvl s1"><div class="band">
           <img class="lo" src="images/profile.jpg" alt=""><img class="hi" src="images/profile.jpg" alt="">
@@ -842,6 +886,8 @@
   if (!cv || !cv.getContext) return;
   var ctx = cv.getContext('2d');
   var W = 0, H = 0, dpr = Math.min(devicePixelRatio || 1, 2);
+  var RIGHT = 0;                    // where a lane ends, set with the size
+  var FADE = 40;                    // px over which it fades out there
   var still = false;   // reduced motion: one static frame, but redraw on resize
 
   var N = 768;
@@ -853,14 +899,28 @@
   // k passes of the binomial [1,2,1]/4 give variance k/2, so sigma = sqrt(k/2).
   // These pass counts are chosen so sigma really doubles: 1, 2, 4, 8 px.
   var PASSES = [0, 2, 8, 32, 128];
-  var LABEL  = ['signal', 'sigma 0-1', 'sigma 1-2', 'sigma 2-4', 'sigma 4-8'];
-  var GUT = 78;                     // a left gutter, so the lanes can be named
+  var LABEL_WIDE   = ['signal', 'sigma 0-1', 'sigma 1-2', 'sigma 2-4', 'sigma 4-8'];
+  var LABEL_NARROW = ['signal', '0-1', '1-2', '2-4', '4-8'];
+  var LABEL = LABEL_WIDE;
+  var GUT = 78;                     // a left gutter, so the lanes can be named.
+                                    // On a phone 78px is a fifth of the
+                                    // screen, so the names drop the word
+                                    // sigma - the masthead already says it -
+                                    // and the plot gets the space back.
   var COL  = ['87,255,207', '87,255,207', '255,193,102', '192,168,255', '130,164,156'];
   var GAIN = [0.85, 3.4, 2.8, 3.0, 4.5];
 
   function size() {
     var r = cv.getBoundingClientRect();
     W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
+    var narrow = W < 560;           // the same threshold as the 35rem query
+    GUT = narrow ? 60 : 78;
+    LABEL = narrow ? LABEL_NARROW : LABEL_WIDE;
+    // The hero is full bleed, so without this the lanes were drawn to the
+    // last pixel of the screen and read as cut off rather than as ending.
+    // The right edge is the one the prose has: the canvas hangs 1.1rem
+    // (2rem above the phone query) outside main's padding box.
+    RIGHT = W - (narrow ? 18 : 32);
     cv.width = W * dpr; cv.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (still) draw();
@@ -914,18 +974,30 @@
     ctx.fillText(LABEL[idx].toUpperCase(), GUT - 12, L.mid);
   }
 
+  // A lane is drawn with a gradient rather than a flat colour, so it fades
+  // out over its last FADE pixels. A hard stop at RIGHT would only move the
+  // cut inwards; this way the signal ends the way a trace on a scope does.
+  function ink(col, a) {
+    var g = ctx.createLinearGradient(GUT, 0, RIGHT, 0);
+    var hold = Math.max(0, 1 - FADE / Math.max(1, RIGHT - GUT));
+    g.addColorStop(0, 'rgba(' + col + ',' + a + ')');
+    g.addColorStop(hold, 'rgba(' + col + ',' + a + ')');
+    g.addColorStop(1, 'rgba(' + col + ',0)');
+    return g;
+  }
+
   function stroke(vals, idx, total, col, gain, width, glow) {
     var L = lane(idx, total);
     ctx.beginPath();
-    var span = Math.max(1, W - GUT);
-    for (var x = GUT; x <= W; x++) {
+    var span = Math.max(1, RIGHT - GUT);
+    for (var x = GUT; x <= RIGHT; x++) {
       var n = Math.min(N - 1, Math.floor((x - GUT) / span * N));
       var y = L.mid - vals[n] * gain * L.amp;
       if (y < L.mid - L.amp) y = L.mid - L.amp;
       if (y > L.mid + L.amp) y = L.mid + L.amp;
       if (x === GUT) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = 'rgba(' + col + ',0.92)';
+    ctx.strokeStyle = ink(col, 0.92);
     ctx.lineWidth = width;
     ctx.shadowColor = 'rgba(' + col + ',0.75)';
     ctx.shadowBlur = glow;
@@ -949,8 +1021,8 @@
       stroke(band, k, total, COL[k], GAIN[k], 1.3, 8);
       // the zero line of each band
       var L = lane(k, total);
-      ctx.strokeStyle = 'rgba(26,66,61,0.8)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(GUT, Math.round(L.mid) + .5); ctx.lineTo(W, Math.round(L.mid) + .5); ctx.stroke();
+      ctx.strokeStyle = ink('26,66,61', 0.8); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(GUT, Math.round(L.mid) + .5); ctx.lineTo(RIGHT, Math.round(L.mid) + .5); ctx.stroke();
       label(k, total, COL[k]);
     }
 
@@ -1017,6 +1089,14 @@
 
   ap.addEventListener('mouseenter', start);
   ap.addEventListener('mouseleave', stop);
+  // A phone has no hover, so there a tap starts the cycle and the next one
+  // stops it. Only where there is really no hover: a laptop with a
+  // touchscreen has both, and there the pointer stays in charge.
+  if (matchMedia('(hover: none)').matches) {
+    ap.addEventListener('click', function () {
+      if (ap.classList.contains('climbing')) stop(); else start();
+    });
+  }
   ap.addEventListener('focus', start);
   ap.addEventListener('blur', stop);
 })();
