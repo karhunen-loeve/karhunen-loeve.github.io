@@ -23,7 +23,7 @@ icons and the preview cards are the exception and live in `images/`.
 
 ## Metadata
 
-Four things are worth knowing about because they are easy to break silently.
+Five things are worth knowing about because they are easy to break silently.
 
 **Preview cards.** Each page names a 1200x630 card in `images/og-*.png` and
 sets `twitter:card` to `summary_large_image`, so a link pasted into Mastodon,
@@ -49,6 +49,21 @@ every other.
 language model in prose what a site is and which pages matter. No crawler is
 obliged to read it. It costs nothing to keep correct and nothing is lost if it
 is ignored.
+
+**`translate="no"` and `class="notranslate"`** fence off everything a phone
+browser must not translate. A German phone offers to translate the site, often
+without asking, and the prose survives that while three things do not: the SVG
+figures, because SVG has no line wrapping and a translated label runs straight
+out of its box; the code, because Rust identifiers are ordinary English words to
+a translator; and the titles, because `The Blue Face Bug` is a name and comes
+back as `Der Blaue Gesicht Käfer`. Both markers are written because there are
+two mechanisms: the attribute is what the browser's own translator reads, the
+class is what the older Google Translate widget reads. The figures are fenced at
+their `<text>` nodes and not at the `<svg>` element on purpose, since the
+attribute inherits and would take the `aria-label` with it, and that label is
+the one part of a figure a German reader on a screen reader wants translated.
+`mark-untranslatable.py` writes all of this and is idempotent, so a page edited
+by hand only needs another run.
 
 ## Browser tools
 

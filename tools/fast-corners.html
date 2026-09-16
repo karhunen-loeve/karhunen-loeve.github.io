@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FAST corners &middot; Thomas Stephan</title>
+<title translate="no">FAST corners &middot; Thomas Stephan</title>
 <meta name="description" content="Detect FAST corners in your own image, entirely in your browser. fovea compiled to WebAssembly: nothing is uploaded, nothing leaves the tab.">
 <meta name="author" content="Thomas Stephan">
 <link rel="canonical" href="https://karhunen-loeve.github.io/tools/fast-corners.html">
@@ -474,7 +474,7 @@
           <path d="M12 4v3.8M4 8l6 2.9M20 8l-6 2.9M12 14.2V20"/>
         </svg>
         <span>
-          <span class="fv-rail-name">FAST corners</span>
+          <span class="fv-rail-name notranslate" translate="no">FAST corners</span>
           <span class="fv-rail-desc">Segment test, ranked and refined to sub-pixel</span>
         </span>
       </a>
@@ -485,7 +485,7 @@
           <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14"/>
         </svg>
         <span>
-          <span class="fv-rail-name">PNG chunks<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-name notranslate" translate="no">PNG chunks<span class="fv-rail-soon">soon</span></span>
           <span class="fv-rail-desc">Every chunk, and which colour signal is missing</span>
         </span>
       </span>
@@ -496,7 +496,7 @@
           <path d="M3 20C7 20 8 4 21 4"/><path d="M3 20h18"/>
         </svg>
         <span>
-          <span class="fv-rail-name">Gamma playground<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-name notranslate" translate="no">Gamma playground<span class="fv-rail-soon">soon</span></span>
           <span class="fv-rail-desc">Resize in sRGB and in linear light, side by side</span>
         </span>
       </span>
@@ -507,7 +507,7 @@
           <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>
         </svg>
         <span>
-          <span class="fv-rail-name">Resize weights<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-name notranslate" translate="no">Resize weights<span class="fv-rail-soon">soon</span></span>
           <span class="fv-rail-desc">The tap table, and whose convention it matches</span>
         </span>
       </span>
@@ -608,13 +608,13 @@
 <article>
 
 <p class="kicker">Browser tool</p>
-<h1>FAST corners</h1>
+<h1 class="notranslate" translate="no">FAST corners</h1>
 <p class="dek">Drop an image, watch the segment test fire, then click a keypoint and read what
 the detector actually decided about it. Everything happens in this tab.</p>
 
 <div class="lesson">
   <strong>Nothing here leaves your machine.</strong> The browser decodes the file, hands the raw
-  pixels to <code>fovea</code> compiled to WebAssembly, and the module hands back coordinates.
+  pixels to <code class="notranslate" translate="no">fovea</code> compiled to WebAssembly, and the module hands back coordinates.
   There is no upload, no server and no analytics: the wasm module is instantiated with an empty
   import object, so it has no way to reach the network even if it wanted to. You can pull the
   network cable and this page still works.
@@ -657,7 +657,7 @@ the detector actually decided about it. Everything happens in this tab.</p>
       <div class="top"><label for="arc">Arc length n</label><output id="arc-out">9</output></div>
       <input type="range" id="arc" min="9" max="16" step="1" value="9">
       <p class="why">The n in FAST-n: how many consecutive ring pixels must agree. Below 9 every
-        edge is a corner, above 16 nothing can ever fire, so <code>SegmentTest</code> refuses
+        edge is a corner, above 16 nothing can ever fire, so <code class="notranslate" translate="no">SegmentTest</code> refuses
         both.</p>
     </div>
     <div class="ctl">
@@ -724,7 +724,7 @@ an arc.</p>
 <p>The module behind this page is a thin shell. Every number you just read came out of these
 calls, in this order:</p>
 
-<pre class="snippet"><code><span class="kw">use</span> fovea::border::{<span class="ty">Clamp</span>, <span class="ty">Skip</span>};
+<pre class="snippet notranslate" translate="no"><code><span class="kw">use</span> fovea::border::{<span class="ty">Clamp</span>, <span class="ty">Skip</span>};
 <span class="kw">use</span> fovea::features::detect::{fast, refine_corners, <span class="ty">FastParams</span>, <span class="ty">NmsRadius</span>, <span class="ty">SegmentTest</span>};
 <span class="kw">use</span> fovea::features::retain_top_n;
 <span class="kw">use</span> fovea::transform::{convert_image, sobel_x, sobel_y, <span class="ty">Luminance</span>, <span class="ty">SrgbGamma</span>};
@@ -748,13 +748,13 @@ retain_top_n(&amp;<span class="kw">mut</span> corners, 400);
 <span class="kw">let</span> window = <span class="ty">NmsRadius</span>::try_new(2)?;
 refine_corners(&amp;<span class="kw">mut</span> corners, &amp;sobel_x(&amp;luma, &amp;<span class="ty">Clamp</span>), &amp;sobel_y(&amp;luma, &amp;<span class="ty">Clamp</span>), window)?;</code></pre>
 
-<p>The threshold slider is the <code>0.08</code>. The arc slider is the <code>9</code>. When you
+<p>The threshold slider is the <code class="notranslate" translate="no">0.08</code>. The arc slider is the <code class="notranslate" translate="no">9</code>. When you
 drag either one past the edge of what the detector can honestly do, you do not get an empty
 result that you have to interpret: you get an error, because
-<a href="https://docs.rs/fovea/latest/fovea/features/detect/struct.SegmentTest.html"><code>SegmentTest</code></a> refuses to exist with an arc length of 8.</p>
+<a href="https://docs.rs/fovea/latest/fovea/features/detect/struct.SegmentTest.html"><code class="notranslate" translate="no">SegmentTest</code></a> refuses to exist with an arc length of 8.</p>
 
 <div class="colophon">
-  Written by Thomas Stephan (<a href="https://github.com/karhunen-loeve">karhunen-loeve</a>).
+  Written by <span class="notranslate" translate="no">Thomas Stephan</span> (<a href="https://github.com/karhunen-loeve">karhunen-loeve</a>).
   The library is <a href="https://github.com/karhunen-loeve/fovea">fovea</a>
   (<a href="https://crates.io/crates/fovea">crates.io</a> &middot; <a href="https://docs.rs/fovea">docs</a>),
   compiled to WebAssembly with no bindings generator and no dependencies.
