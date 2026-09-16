@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>128 Is Not the Middle: Gamma, Interpolation, and the Bug in Every Resize</title>
+<title translate="no">128 Is Not the Middle: Gamma, Interpolation, and the Bug in Every Resize</title>
 <meta name="description" content="Average black and white and you get 128. The correct answer is 188. Gamma-encoded pixels break every naive resize, blur, and blend. The fix belongs in the type system.">
 <meta name="author" content="Thomas Stephan">
 <link rel="canonical" href="https://karhunen-loeve.github.io/02-gamma-blind-interpolation.html">
@@ -578,7 +578,7 @@
           <path d="M12 4v3.8M4 8l6 2.9M20 8l-6 2.9M12 14.2V20"/>
         </svg>
         <span>
-          <span class="fv-rail-name">FAST corners</span>
+          <span class="fv-rail-name notranslate" translate="no">FAST corners</span>
           <span class="fv-rail-desc">Segment test, ranked and refined to sub-pixel</span>
         </span>
       </a>
@@ -589,7 +589,7 @@
           <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14"/>
         </svg>
         <span>
-          <span class="fv-rail-name">PNG chunks<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-name notranslate" translate="no">PNG chunks<span class="fv-rail-soon">soon</span></span>
           <span class="fv-rail-desc">Every chunk, and which colour signal is missing</span>
         </span>
       </span>
@@ -600,7 +600,7 @@
           <path d="M3 20C7 20 8 4 21 4"/><path d="M3 20h18"/>
         </svg>
         <span>
-          <span class="fv-rail-name">Gamma playground<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-name notranslate" translate="no">Gamma playground<span class="fv-rail-soon">soon</span></span>
           <span class="fv-rail-desc">Resize in sRGB and in linear light, side by side</span>
         </span>
       </span>
@@ -611,7 +611,7 @@
           <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>
         </svg>
         <span>
-          <span class="fv-rail-name">Resize weights<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-name notranslate" translate="no">Resize weights<span class="fv-rail-soon">soon</span></span>
           <span class="fv-rail-desc">The tap table, and whose convention it matches</span>
         </span>
       </span>
@@ -710,10 +710,10 @@
 </div>
 <article>
 
-<p class="kicker">Type-Safe Computer Vision · Part 2 of 3</p>
-<h1>128 Is Not the Middle</h1>
+<p class="kicker"><span class="notranslate" translate="no">Type-Safe Computer Vision</span> · Part 2 of 3</p>
+<h1 class="notranslate" translate="no">128 Is Not the Middle</h1>
 <p class="dek">Average a black pixel and a white pixel. Your code computes 127.5, rounds it to 128, and stores it. That answer is wrong by a margin you can see from across the room, and it is in nearly every resize you have ever written.</p>
-<p class="byline">Thomas Stephan · <time datetime="2026-09-11T12:00:00Z">11 September 2026</time> · <a href="/">Series index</a></p>
+<p class="byline"><span class="notranslate" translate="no">Thomas Stephan</span> · <time datetime="2026-09-11T12:00:00Z">11 September 2026</time> · <a href="/">Series index</a></p>
 
 <h2>A one-line quiz</h2>
 
@@ -727,7 +727,7 @@
     <rect x="50" y="45" width="130" height="130" fill="#ffffff" stroke="var(--border)"/>
     <rect x="50" y="45" width="65" height="65" fill="#000000"/>
     <rect x="115" y="110" width="65" height="65" fill="#000000"/>
-    <text x="115" y="200" text-anchor="middle" class="svg-ink2" font-size="13">50% black, 50% white</text>
+    <text x="115" y="200" text-anchor="middle" class="svg-ink2 notranslate" font-size="13" translate="no">50% black, 50% white</text>
   </g>
   <path d="M195 90 L275 70" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr2)"/>
   <path d="M195 140 L275 160" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr2)"/>
@@ -735,20 +735,20 @@
   <!-- naive -->
   <g>
     <rect x="290" y="40" width="90" height="70" rx="8" fill="rgb(128,128,128)"/>
-    <text x="395" y="65" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">mean = 127.5 → 128</tspan></text>
-    <text x="395" y="86" class="svg-ink2" font-size="13">naive byte average, clearly too dark</text>
+    <text x="395" y="65" class="svg-ink notranslate" font-size="14" translate="no"><tspan class="mono" font-weight="600">mean = 127.5 → 128</tspan></text>
+    <text x="395" y="86" class="svg-ink2 notranslate" font-size="13" translate="no">naive byte average, clearly too dark</text>
   </g>
   <!-- correct -->
   <g>
     <rect x="290" y="130" width="90" height="70" rx="8" fill="rgb(188,188,188)"/>
-    <text x="395" y="155" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">average in light = 188</tspan></text>
-    <text x="395" y="176" class="svg-ink2" font-size="13">what half of white’s light actually looks like</text>
+    <text x="395" y="155" class="svg-ink notranslate" font-size="14" translate="no"><tspan class="mono" font-weight="600">average in light = 188</tspan></text>
+    <text x="395" y="176" class="svg-ink2 notranslate" font-size="13" translate="no">what half of white’s light actually looks like</text>
   </g>
   <!-- the same pattern, fine enough that the eye averages it; the swatch-sized
        hole at x=290..380, y=215..285 is filled by the canvas next to this svg -->
   <g>
-    <text x="395" y="240" class="svg-ink" font-size="14"><tspan class="mono" font-weight="600">the same pattern</tspan></text>
-    <text x="395" y="261" class="svg-ink2" font-size="13">one square per screen pixel</text>
+    <text x="395" y="240" class="svg-ink notranslate" font-size="14" translate="no"><tspan class="mono" font-weight="600">the same pattern</tspan></text>
+    <text x="395" y="261" class="svg-ink2 notranslate" font-size="13" translate="no">one square per screen pixel</text>
   </g>
 </svg>
   <canvas id="sq-fine" aria-label="The same 50/50 black and white pattern at one square per screen pixel, which the eye reads as a light gray."></canvas>
@@ -763,15 +763,15 @@
   <p class="board-lbl">50% black, 50% white</p>
   <div class="row">
     <div class="swatch" style="background: rgb(128,128,128)"></div>
-    <p><code>mean = 127.5 → 128</code>naive byte average, clearly too dark</p>
+    <p><code class="notranslate" translate="no">mean = 127.5 → 128</code>naive byte average, clearly too dark</p>
   </div>
   <div class="row">
     <div class="swatch" style="background: rgb(188,188,188)"></div>
-    <p><code>average in light = 188</code>what half of white’s light actually looks like</p>
+    <p><code class="notranslate" translate="no">average in light = 188</code>what half of white’s light actually looks like</p>
   </div>
   <div class="row">
     <canvas id="sq-fine-narrow"></canvas>
-    <p><code>the same pattern</code>one square per screen pixel</p>
+    <p><code class="notranslate" translate="no">the same pattern</code>one square per screen pixel</p>
   </div>
 </div>
 <figcaption>Fig. 1. The third swatch is the same 50/50 pattern with one square per screen pixel, so your eye averages it instead of resolving it. Hold it against the two above: it is not the byte average. Your eye averages <em>light</em>, and so does every camera lens; naive code averages <em>bytes</em>.</figcaption>
@@ -796,25 +796,25 @@
   <line x1="70" y1="280" x2="640" y2="280" stroke="var(--hairline)" stroke-width="1.5"/>
   <!-- y labels -->
   <g class="svg-muted" font-size="11" text-anchor="end">
-    <text x="62" y="34">100%</text>
-    <text x="62" y="96.5">75%</text>
-    <text x="62" y="159">50%</text>
-    <text x="62" y="221.5">25%</text>
-    <text x="62" y="284">0%</text>
+    <text x="62" y="34" class="notranslate" translate="no">100%</text>
+    <text x="62" y="96.5" class="notranslate" translate="no">75%</text>
+    <text x="62" y="159" class="notranslate" translate="no">50%</text>
+    <text x="62" y="221.5" class="notranslate" translate="no">25%</text>
+    <text x="62" y="284" class="notranslate" translate="no">0%</text>
   </g>
   <!-- x labels -->
   <g class="svg-muted" font-size="11" text-anchor="middle">
-    <text x="70"  y="298">0</text>
-    <text x="212.5" y="298">64</text>
-    <text x="355" y="298">128</text>
-    <text x="497.5" y="298">192</text>
-    <text x="640" y="298">255</text>
+    <text x="70"  y="298" class="notranslate" translate="no">0</text>
+    <text x="212.5" y="298" class="notranslate" translate="no">64</text>
+    <text x="355" y="298" class="notranslate" translate="no">128</text>
+    <text x="497.5" y="298" class="notranslate" translate="no">192</text>
+    <text x="640" y="298" class="notranslate" translate="no">255</text>
   </g>
-  <text x="355" y="322" text-anchor="middle" class="svg-ink2" font-size="12">stored value (what the file says)</text>
-  <text x="24" y="155" text-anchor="middle" class="svg-ink2" font-size="12" transform="rotate(-90 24 155)">light emitted (what you see)</text>
+  <text x="355" y="322" text-anchor="middle" class="svg-ink2 notranslate" font-size="12" translate="no">stored value (what the file says)</text>
+  <text x="24" y="155" text-anchor="middle" class="svg-ink2 notranslate" font-size="12" transform="rotate(-90 24 155)" translate="no">light emitted (what you see)</text>
   <!-- diagonal reference -->
   <line x1="70" y1="280" x2="640" y2="30" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6 5" opacity=".85"/>
-  <text x="300" y="173" class="svg-muted" font-size="11" transform="rotate(-23.7 300 173)">if values were light (they aren’t)</text>
+  <text x="300" y="173" class="svg-muted notranslate" font-size="11" transform="rotate(-23.7 300 173)" translate="no">if values were light (they aren’t)</text>
   <!-- sRGB decode curve: y = 280 - 250 * decode(x), x = 70 + 570 * (stored/255) -->
   <path d="M 70 280
            C 190 278, 260 262, 355 226
@@ -825,12 +825,12 @@
   <line x1="355" y1="280" x2="355" y2="226" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
   <line x1="70" y1="226" x2="355" y2="226" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
   <circle cx="355" cy="226" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
-  <text x="365" y="243" class="svg-ink" font-size="12.5" font-weight="600">stored 128 → only ≈22% of white’s light</text>
+  <text x="365" y="243" class="svg-ink notranslate" font-size="12.5" font-weight="600" translate="no">stored 128 → only ≈22% of white’s light</text>
   <!-- marker: 188 -> 50% : x=70+570*(188/255)=490.3? compute 188/255=0.7373*570=420.2+70=490.2, y=280-125=155 -->
   <line x1="490" y1="280" x2="490" y2="155" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
   <line x1="70" y1="155" x2="490" y2="155" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
   <circle cx="490" cy="155" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
-  <text x="505" y="177" class="svg-ink" font-size="12.5" font-weight="600">stored 188 → ≈50%</text>
+  <text x="505" y="177" class="svg-ink notranslate" font-size="12.5" font-weight="600" translate="no">stored 188 → ≈50%</text>
 </svg>
 <!-- The same chart for a phone column, see the Figs. 1 to 4 rules in the
      style block. Only one of the two is displayed at any width, and
@@ -849,21 +849,21 @@
   </g>
   <line x1="58" y1="270" x2="326" y2="270" stroke="var(--hairline)" stroke-width="1.5"/>
   <g class="svg-muted" font-size="12" text-anchor="end">
-    <text x="52" y="24">100%</text>
-    <text x="52" y="86.5">75%</text>
-    <text x="52" y="149">50%</text>
-    <text x="52" y="211.5">25%</text>
-    <text x="52" y="274">0%</text>
+    <text x="52" y="24" class="notranslate" translate="no">100%</text>
+    <text x="52" y="86.5" class="notranslate" translate="no">75%</text>
+    <text x="52" y="149" class="notranslate" translate="no">50%</text>
+    <text x="52" y="211.5" class="notranslate" translate="no">25%</text>
+    <text x="52" y="274" class="notranslate" translate="no">0%</text>
   </g>
   <g class="svg-muted" font-size="12" text-anchor="middle">
-    <text x="58"  y="288">0</text>
-    <text x="125" y="288">64</text>
-    <text x="192" y="288">128</text>
-    <text x="259" y="288">192</text>
-    <text x="326" y="288">255</text>
+    <text x="58"  y="288" class="notranslate" translate="no">0</text>
+    <text x="125" y="288" class="notranslate" translate="no">64</text>
+    <text x="192" y="288" class="notranslate" translate="no">128</text>
+    <text x="259" y="288" class="notranslate" translate="no">192</text>
+    <text x="326" y="288" class="notranslate" translate="no">255</text>
   </g>
-  <text x="192" y="310" text-anchor="middle" class="svg-ink2" font-size="12.5">stored value (what the file says)</text>
-  <text x="14" y="145" text-anchor="middle" class="svg-ink2" font-size="12.5" transform="rotate(-90 14 145)">light emitted (what you see)</text>
+  <text x="192" y="310" text-anchor="middle" class="svg-ink2 notranslate" font-size="12.5" translate="no">stored value (what the file says)</text>
+  <text x="14" y="145" text-anchor="middle" class="svg-ink2 notranslate" font-size="12.5" transform="rotate(-90 14 145)" translate="no">light emitted (what you see)</text>
   <line x1="58" y1="270" x2="326" y2="20" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="6 5" opacity=".85"/>
   <path d="M 58 270
            C 114.4 268, 147.3 252, 192 216
@@ -873,11 +873,11 @@
   <line x1="192" y1="270" x2="192" y2="216" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
   <line x1="58" y1="216" x2="192" y2="216" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
   <circle cx="192" cy="216" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
-  <text x="200" y="233" class="svg-ink" font-size="13" font-weight="600">128</text>
+  <text x="200" y="233" class="svg-ink notranslate" font-size="13" font-weight="600" translate="no">128</text>
   <line x1="255.5" y1="270" x2="255.5" y2="145" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
   <line x1="58" y1="145" x2="255.5" y2="145" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/>
   <circle cx="255.5" cy="145" r="4.5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
-  <text x="264" y="162" class="svg-ink" font-size="13" font-weight="600">188</text>
+  <text x="264" y="162" class="svg-ink notranslate" font-size="13" font-weight="600" translate="no">188</text>
 </svg>
 <ul class="key">
   <li><span class="dot"></span><b>stored 128</b> → only ≈22% of white’s light</li>
@@ -898,27 +898,27 @@
   </defs>
 
   <!-- the source: 2x2 stored bytes, centre line y=96 -->
-  <text x="120" y="34" text-anchor="middle" class="svg-ink" font-size="14" font-weight="600">stored bytes</text>
+  <text x="120" y="34" text-anchor="middle" class="svg-ink notranslate" font-size="14" font-weight="600" translate="no">stored bytes</text>
   <g class="mono" font-size="15" text-anchor="middle">
     <rect x="60"  y="50"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
     <rect x="124" y="50"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
     <rect x="60"  y="92"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
     <rect x="124" y="92"  width="56" height="42" fill="none" stroke="var(--hairline)"/>
-    <text x="88"  y="76"  class="svg-ink">0</text>
-    <text x="152" y="76"  class="svg-ink">255</text>
-    <text x="88"  y="118" class="svg-ink">255</text>
-    <text x="152" y="118" class="svg-ink">0</text>
+    <text x="88"  y="76"  class="svg-ink notranslate" translate="no">0</text>
+    <text x="152" y="76"  class="svg-ink notranslate" translate="no">255</text>
+    <text x="88"  y="118" class="svg-ink notranslate" translate="no">255</text>
+    <text x="152" y="118" class="svg-ink notranslate" translate="no">0</text>
   </g>
 
   <!-- naive path: straight across, on the source's own centre line -->
-  <text x="380" y="82" text-anchor="middle" class="mono svg-ink2" font-size="12.5">mean(0, 255, 255, 0) = 127.5</text>
+  <text x="380" y="82" text-anchor="middle" class="mono svg-ink2 notranslate" font-size="12.5" translate="no">mean(0, 255, 255, 0) = 127.5</text>
   <path d="M196 92 L560 92" stroke="var(--bad)" stroke-width="1.5" fill="none" marker-end="url(#arrR)"/>
   <rect x="574" y="71" width="52" height="42" rx="6" fill="rgb(128,128,128)"/>
-  <text x="600" y="131" text-anchor="middle" class="mono svg-ink" font-size="13">128 ✗</text>
+  <text x="600" y="131" text-anchor="middle" class="mono svg-ink notranslate" font-size="13" translate="no">128 ✗</text>
 
   <!-- the branch: straight down out of the source -->
   <path d="M120 138 L120 188" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
-  <text x="132" y="172" class="svg-ink2" font-size="12">decode to light</text>
+  <text x="132" y="172" class="svg-ink2 notranslate" font-size="12" translate="no">decode to light</text>
 
   <!-- the same matrix in linear light, directly below the source -->
   <g class="mono" font-size="14" text-anchor="middle">
@@ -926,22 +926,22 @@
     <rect x="124" y="196" width="56" height="42" fill="none" stroke="var(--hairline)"/>
     <rect x="60"  y="238" width="56" height="42" fill="none" stroke="var(--hairline)"/>
     <rect x="124" y="238" width="56" height="42" fill="none" stroke="var(--hairline)"/>
-    <text x="88"  y="222" class="svg-ink">0.0</text>
-    <text x="152" y="222" class="svg-ink">1.0</text>
-    <text x="88"  y="264" class="svg-ink">1.0</text>
-    <text x="152" y="264" class="svg-ink">0.0</text>
+    <text x="88"  y="222" class="svg-ink notranslate" translate="no">0.0</text>
+    <text x="152" y="222" class="svg-ink notranslate" translate="no">1.0</text>
+    <text x="88"  y="264" class="svg-ink notranslate" translate="no">1.0</text>
+    <text x="152" y="264" class="svg-ink notranslate" translate="no">0.0</text>
   </g>
 
   <!-- linear path: one straight line through mean and re-encode, y=238 -->
-  <text x="256" y="228" text-anchor="middle" class="mono svg-ink2" font-size="12.5">mean = 0.5</text>
+  <text x="256" y="228" text-anchor="middle" class="mono svg-ink2 notranslate" font-size="12.5" translate="no">mean = 0.5</text>
   <path d="M196 238 L316 238" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
   <rect x="330" y="217" width="52" height="42" rx="6" fill="rgb(188,188,188)"/>
-  <text x="356" y="277" text-anchor="middle" class="mono svg-ink2" font-size="13">0.5</text>
+  <text x="356" y="277" text-anchor="middle" class="mono svg-ink2 notranslate" font-size="13" translate="no">0.5</text>
 
-  <text x="479" y="228" text-anchor="middle" class="svg-ink2" font-size="12">re-encode</text>
+  <text x="479" y="228" text-anchor="middle" class="svg-ink2 notranslate" font-size="12" translate="no">re-encode</text>
   <path d="M398 238 L560 238" stroke="var(--good)" stroke-width="1.5" fill="none" marker-end="url(#arrG)"/>
   <rect x="574" y="217" width="52" height="42" rx="6" fill="rgb(188,188,188)"/>
-  <text x="600" y="277" text-anchor="middle" class="mono svg-ink" font-size="13">188 ✓</text>
+  <text x="600" y="277" text-anchor="middle" class="mono svg-ink notranslate" font-size="13" translate="no">188 ✓</text>
 </svg>
 <!-- The same figure for a phone column, see the Figs. 1 to 4 rules in the
      style block. This copy carries the drawing's accessible name, as above. -->
@@ -949,18 +949,18 @@
   <div class="path bad">
     <p class="path-title">stored bytes</p>
     <div class="mat"><span>0</span><span>255</span><span>255</span><span>0</span></div>
-    <p class="step"><code>mean(0, 255, 255, 0) = 127.5</code></p>
-    <div class="out"><span class="sw" style="background: rgb(128,128,128)"></span><code>128 ✗</code></div>
+    <p class="step"><code class="notranslate" translate="no">mean(0, 255, 255, 0) = 127.5</code></p>
+    <div class="out"><span class="sw" style="background: rgb(128,128,128)"></span><code class="notranslate" translate="no">128 ✗</code></div>
   </div>
   <div class="path good">
     <p class="path-title">stored bytes</p>
     <div class="mat"><span>0</span><span>255</span><span>255</span><span>0</span></div>
     <p class="step">decode to light</p>
     <div class="mat"><span>0.0</span><span>1.0</span><span>1.0</span><span>0.0</span></div>
-    <p class="step"><code>mean = 0.5</code></p>
-    <div class="out"><span class="sw" style="background: rgb(188,188,188)"></span><code>0.5</code></div>
+    <p class="step"><code class="notranslate" translate="no">mean = 0.5</code></p>
+    <div class="out"><span class="sw" style="background: rgb(188,188,188)"></span><code class="notranslate" translate="no">0.5</code></div>
     <p class="step">re-encode</p>
-    <div class="out"><span class="sw" style="background: rgb(188,188,188)"></span><code>188 ✓</code></div>
+    <div class="out"><span class="sw" style="background: rgb(188,188,188)"></span><code class="notranslate" translate="no">188 ✓</code></div>
   </div>
 </div>
 <figcaption>Fig. 3. Same input, two pipelines. The red path does arithmetic on the <em>code</em>; the green path decodes to light, averages, and re-encodes. The 0.5 swatch and the 188 swatch are the same gray, because re-encoding changes the number and not the light. Three extra steps, one visibly different answer.</figcaption>
@@ -989,38 +989,38 @@
   </defs>
 
   <!-- interpolating the encoded values -->
-  <text x="290" y="34" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">interpolating the stored bytes</text>
+  <text x="290" y="34" text-anchor="middle" class="svg-ink notranslate" font-size="13" font-weight="600" translate="no">interpolating the stored bytes</text>
   <rect x="50" y="44" width="480" height="36" fill="url(#gNaive)" stroke="var(--border)"/>
   <line x1="290" y1="40" x2="290" y2="88" stroke="var(--bad)" stroke-width="1.5"/>
-  <text x="546" y="68" class="mono svg-ink" font-size="13">mid = 130 ✗</text>
-  <text x="50"  y="97" class="mono svg-muted" font-size="12">40</text>
-  <text x="530" y="97" text-anchor="end" class="mono svg-muted" font-size="12">220</text>
+  <text x="546" y="68" class="mono svg-ink notranslate" font-size="13" translate="no">mid = 130 ✗</text>
+  <text x="50"  y="97" class="mono svg-muted notranslate" font-size="12" translate="no">40</text>
+  <text x="530" y="97" text-anchor="end" class="mono svg-muted notranslate" font-size="12" translate="no">220</text>
 
   <!-- the same interpolation, in light -->
-  <text x="290" y="128" text-anchor="middle" class="svg-ink" font-size="13" font-weight="600">interpolating in linear light</text>
+  <text x="290" y="128" text-anchor="middle" class="svg-ink notranslate" font-size="13" font-weight="600" translate="no">interpolating in linear light</text>
   <rect x="50" y="138" width="480" height="36" fill="url(#gLinear)" stroke="var(--border)"/>
   <line x1="290" y1="134" x2="290" y2="182" stroke="var(--good)" stroke-width="1.5"/>
-  <text x="546" y="162" class="mono svg-ink" font-size="13">mid = 163 ✓</text>
-  <text x="50"  y="191" class="mono svg-muted" font-size="12">40</text>
-  <text x="530" y="191" text-anchor="end" class="mono svg-muted" font-size="12">220</text>
+  <text x="546" y="162" class="mono svg-ink notranslate" font-size="13" translate="no">mid = 163 ✓</text>
+  <text x="50"  y="191" class="mono svg-muted notranslate" font-size="12" translate="no">40</text>
+  <text x="530" y="191" text-anchor="end" class="mono svg-muted notranslate" font-size="12" translate="no">220</text>
 
   <!-- the same arithmetic on two saturated colours, with the numbers to check -->
   <g>
     <rect x="50"  y="212" width="60" height="30" rx="5" fill="rgb(255,0,0)"/>
-    <text x="122" y="232" class="svg-ink" font-size="15">+</text>
+    <text x="122" y="232" class="svg-ink notranslate" font-size="15" translate="no">+</text>
     <rect x="138" y="212" width="60" height="30" rx="5" fill="rgb(0,255,0)"/>
-    <text x="212" y="232" class="svg-ink" font-size="15">=</text>
+    <text x="212" y="232" class="svg-ink notranslate" font-size="15" translate="no">=</text>
     <rect x="230" y="212" width="60" height="30" rx="5" fill="rgb(128,128,0)"/>
-    <text x="300" y="232" class="svg-ink2" font-size="12.5">muddy (bytes)</text>
-    <text x="404" y="232" class="svg-ink" font-size="15">vs</text>
+    <text x="300" y="232" class="svg-ink2 notranslate" font-size="12.5" translate="no">muddy (bytes)</text>
+    <text x="404" y="232" class="svg-ink notranslate" font-size="15" translate="no">vs</text>
     <rect x="434" y="212" width="60" height="30" rx="5" fill="rgb(188,188,0)"/>
-    <text x="504" y="232" class="svg-ink2" font-size="12.5">bright (light)</text>
+    <text x="504" y="232" class="svg-ink2 notranslate" font-size="12.5" translate="no">bright (light)</text>
   </g>
   <g class="mono svg-muted" font-size="11.5" text-anchor="middle">
-    <text x="80"  y="258">255,0,0</text>
-    <text x="168" y="258">0,255,0</text>
-    <text x="260" y="258">128,128,0</text>
-    <text x="464" y="258">188,188,0</text>
+    <text x="80"  y="258" class="notranslate" translate="no">255,0,0</text>
+    <text x="168" y="258" class="notranslate" translate="no">0,255,0</text>
+    <text x="260" y="258" class="notranslate" translate="no">128,128,0</text>
+    <text x="464" y="258" class="notranslate" translate="no">188,188,0</text>
   </g>
 </svg>
 <!-- The same figure for a phone column, see the Figs. 1 to 4 rules in the
@@ -1028,10 +1028,10 @@
 <div class="fig-narrow" role="img" aria-label="Two gradient strips, both running from gray 40 on the left to gray 220 on the right. Interpolating the stored bytes puts the midpoint at 130, which looks too dark; interpolating in linear light puts it at 163, which matches perceived halfway brightness. Below, red 255,0,0 blended with green 0,255,0 gives dark olive 128,128,0 on bytes and bright 188,188,0 in linear light.">
   <p class="fig-title">interpolating the stored bytes</p>
   <div class="strip naive"><span class="tick bad"></span></div>
-  <p class="ends"><span>40</span><code>mid = 130 ✗</code><span>220</span></p>
+  <p class="ends"><span>40</span><code class="notranslate" translate="no">mid = 130 ✗</code><span>220</span></p>
   <p class="fig-title">interpolating in linear light</p>
   <div class="strip linear"><span class="tick good"></span></div>
-  <p class="ends"><span>40</span><code>mid = 163 ✓</code><span>220</span></p>
+  <p class="ends"><span>40</span><code class="notranslate" translate="no">mid = 163 ✓</code><span>220</span></p>
   <div class="blend">
     <div class="cell"><span class="sw" style="background: rgb(255,0,0)"></span>255,0,0</div>
     <span class="op">+</span>
@@ -1066,7 +1066,7 @@
   </div>
 </div>
 <figcaption>Fig. 5. The same photograph shrunk to a thumbnail twice, same filter, same number of steps. The only difference is whether the bytes were decoded to light before averaging. The stars survive on one side only.
-<span class="credit">Photo: <a href="https://commons.wikimedia.org/wiki/File:ESO_-_Milky_Way.jpg">ESO/S. Brunier</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Both thumbnails produced with <code>gamma_thumbnails</code> in <a href="https://github.com/karhunen-loeve/fovea-examples">fovea-examples</a>, which prints the measured difference.</span></figcaption>
+<span class="credit">Photo: <a href="https://commons.wikimedia.org/wiki/File:ESO_-_Milky_Way.jpg">ESO/S. Brunier</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Both thumbnails produced with <code class="notranslate" translate="no">gamma_thumbnails</code> in <a href="https://github.com/karhunen-loeve/fovea-examples">fovea-examples</a>, which prints the measured difference.</span></figcaption>
 </figure>
 
 <p>This is why gamma-ignorant thumbnails look slightly lifeless, why blurred highlights grow <a href="https://github.com/libvips/libvips/discussions/3851">dark halos</a>, and why <a href="https://www.ericbrasseur.org/gamma.html">Eric Brasseur’s gamma test image</a> (a fine black-and-white pattern whose structure survives a correct downscale) collapses into flat gray in essentially every scaler he tried. The internet has re-discovered this bug on a loop for two decades: <a href="https://github.com/python-pillow/Pillow/issues/1604">Pillow</a> closed the request as out of scope, <a href="https://github.com/imgproxy/imgproxy/issues/145">imgproxy</a> and <a href="https://github.com/darktable-org/darktable/issues/13335">darktable</a> carry the same report, and it still ships in production, everywhere, today.</p>
@@ -1096,13 +1096,13 @@
 
 <h2>Look at what kind of bug this is</h2>
 
-<p>Once more, there is no logic error. The interpolation formula is textbook-correct. The bug is that the formula was applied to <em>encoded</em> values as if they were <em>linear</em> ones: two kinds of numbers that happen to share the same byte width, living in the same arrays, with nothing anywhere to tell them apart. That’s not a logic bug. It is a <strong>type bug</strong>. An <code>ndarray</code> of <code>uint8</code> cannot say “I am gamma-encoded; please don’t do arithmetic on me,” so nothing stops you. Or your teammate. Or the coding agent that wrote <code>cv2.resize</code> into your pipeline, exactly as ten thousand tutorials taught it to.</p>
+<p>Once more, there is no logic error. The interpolation formula is textbook-correct. The bug is that the formula was applied to <em>encoded</em> values as if they were <em>linear</em> ones: two kinds of numbers that happen to share the same byte width, living in the same arrays, with nothing anywhere to tell them apart. That’s not a logic bug. It is a <strong>type bug</strong>. An <code class="notranslate" translate="no">ndarray</code> of <code class="notranslate" translate="no">uint8</code> cannot say “I am gamma-encoded; please don’t do arithmetic on me,” so nothing stops you. Or your teammate. Or the coding agent that wrote <code class="notranslate" translate="no">cv2.resize</code> into your pipeline, exactly as ten thousand tutorials taught it to.</p>
 
 <h2>What if the image knew it was encoded?</h2>
 
-<p>In <a href="https://crates.io/crates/fovea">fovea</a>, gamma-encoded and linear pixels are <em>different types</em>. <code>Srgb8</code> and <code>Rgb8</code> have identical bytes, but only the linear one implements the trait that blending operations require. The compiler knows the difference, so it enforces the physics:</p>
+<p>In <a href="https://crates.io/crates/fovea">fovea</a>, gamma-encoded and linear pixels are <em>different types</em>. <code class="notranslate" translate="no">Srgb8</code> and <code class="notranslate" translate="no">Rgb8</code> have identical bytes, but only the linear one implements the trait that blending operations require. The compiler knows the difference, so it enforces the physics:</p>
 
-<pre><code><span class="kw">use</span> fovea::pixel::{<span class="ty">Srgb8</span>, <span class="ty">RgbF32</span>};
+<pre class="notranslate" translate="no"><code><span class="kw">use</span> fovea::pixel::{<span class="ty">Srgb8</span>, <span class="ty">RgbF32</span>};
 <span class="kw">use</span> fovea::transform::{<span class="ty">Bilinear</span>, <span class="ty">SrgbGamma</span>, convert_image, resize};
 
 <span class="kw">let</span> photo: Image&lt;<span class="ty">Srgb8</span>&gt; = <span class="cmt">/* decoded from a PNG, gamma-encoded like every photo */</span>;
@@ -1114,7 +1114,7 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
 
 <p>The compile error <em>is</em> the lesson from this article, delivered at the exact line where it applies, before the program ever runs. And the fix reads like the green path in Fig. 3: decode, operate, re-encode, each step named:</p>
 
-<pre><code><span class="cmt">// 1. decode the gamma curve, bytes become linear light</span>
+<pre class="notranslate" translate="no"><code><span class="cmt">// 1. decode the gamma curve, bytes become linear light</span>
 <span class="kw">let</span> light: Image&lt;<span class="ty">RgbF32</span>&gt; = convert_image(&amp;photo, <span class="ty">SrgbGamma</span>);
 
 <span class="cmt">// 2. now averaging is physically meaningful, resize away</span>
@@ -1127,12 +1127,12 @@ resize(&amp;photo, Size::new(800, 600), <span class="ty">Bilinear</span>);
 
 <p>One line of forum wisdom (“convert to linear before you blur”) has been repeated for twenty years and forgotten for twenty years. A type checker never forgets. As more vision code gets written by agents trained on those very tutorials, the difference between advice and a trait bound is that one of them is enforced.</p>
 
-<p>So far our bugs lived inside a single image. The final part climbs a whole stack of them: image pyramids and scale-space, where sizes stop matching, coordinates drift by half a pixel per level, and one library packed three numbers into one integer and called it an <code>octave</code>. That part is still being finished; it follows shortly.</p>
+<p>So far our bugs lived inside a single image. The final part climbs a whole stack of them: image pyramids and scale-space, where sizes stop matching, coordinates drift by half a pixel per level, and one library packed three numbers into one integer and called it an <code class="notranslate" translate="no">octave</code>. That part is still being finished; it follows shortly.</p>
 
 <div class="footer-nav">
-  <strong>Type-Safe Computer Vision</strong>, a series about bugs the compiler could have caught:
-  <a href="01-rgb-bgr-the-blue-face-bug.html">Part 1: The Blue Face Bug, RGB vs BGR</a> ·
-  Part 2: 128 Is Not the Middle
+  <strong class="notranslate" translate="no">Type-Safe Computer Vision</strong>, a series about bugs the compiler could have caught:
+  <a href="01-rgb-bgr-the-blue-face-bug.html">Part 1: <span class="notranslate" translate="no">The Blue Face Bug</span>, RGB vs BGR</a> ·
+  Part 2: <span class="notranslate" translate="no">128 Is Not the Middle</span>
   <br><br>
   <a href="/">Series index</a> · <a href="/feed.xml">Atom feed</a> · <a href="https://github.com/karhunen-loeve/fovea">fovea on GitHub</a>
 </div>
