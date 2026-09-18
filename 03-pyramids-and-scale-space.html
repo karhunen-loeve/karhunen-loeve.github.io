@@ -864,46 +864,52 @@
 
 <p>None of these are logic bugs. The blur was correct, the subsampling was correct, the multiplication by 8 was multiplication by 8. What failed, every time, was <em>unrecorded meaning</em>: an odd parent size the down-step forgot, a σ nobody wrote down, a grid offset that existed only in the implementer’s head. Type bugs, the kind a type system can refuse to compile.</p>
 
-<p>Here is how <a href="https://crates.io/crates/fovea">fovea</a> answers all three, as of v0.4.0 (September 2026). The principle: <strong>a level&rsquo;s geometry is a value it carries, not a convention you are expected to remember.</strong></p>
+<p>Here is how <a href="https://crates.io/crates/fovea">fovea</a> answers all three, as of v0.5.0 (September 2026). The principle: <strong>a level&rsquo;s geometry is a value it carries, not a convention you are expected to remember.</strong></p>
 
-<p><strong>Trap 1, the staircase that would not come back up.</strong> The levels live in a <code class="notranslate" translate="no">Pyramid&lt;L&gt;</code>, finest first, which is the thing that remembers the sizes. The up-step asks for its target, and there is no overload that guesses:</p>
+<p><strong>Trap 1, the staircase that would not come back up.</strong> A loose 51-pixel-wide image really is ambiguous, so the free up-step asks for its target and there is no overload that guesses. Inside a pyramid the parent size is not missing information, it is stored, so there is nothing left to ask for. Both calls exist, and the difference between them is the entire point:</p>
 
 <pre class="notranslate" translate="no"><code><span class="kw">let</span> base: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = load(&quot;photo.png&quot;)?; <span class="cmt">// 101 × 68, an ordinary odd size</span>
 <span class="kw">let</span> pyr = <span class="ty">Gaussian</span>.build(&amp;base, 3);        <span class="cmt">// 101×68, 51×34, 26×17</span>
 
-<span class="cmt">// Go back up one level. The number 101 is not in level 1 any more:</span>
-<span class="kw">let</span> back_up = pyr_up(pyr.level(1));
+<span class="cmt">// An image on its own has lost the number 101, so the free function has</span>
+<span class="cmt">// to be told, and refuses to guess:</span>
+<span class="kw">let</span> back_up = pyr_up(&amp;loose_level);
 <span class="err">// error[E0061]: this function takes 2 arguments but 1 argument was supplied</span>
-<span class="err">//   = note: a 51-wide level could have come from 101 or from 102</span>
+<span class="err">//   = note: a 51-wide image could have come from 101 or from 102</span>
 
-<span class="cmt">// The pyramid does know, so ask it. Odd sizes round-trip exactly:</span>
-<span class="kw">let</span> back_up: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = pyr_up(pyr.level(1), pyr.level(0).size())?;</code></pre>
+<span class="cmt">// Inside the pyramid the parent is right there, so nothing is asked:</span>
+<span class="kw">let</span> back_up: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = pyr.expand(1).expect(&quot;level 1 has a parent&quot;);
+<span class="cmt">// 101 × 68, exactly. The Option asks &quot;is there a level above this one?&quot;,</span>
+<span class="cmt">// which is the only question left once the container was checked once.</span></code></pre>
 
-<p><strong>Trap 2, the two ladders.</strong> Note what a level is <em>not</em> allowed to do here: guess. Blur and resolution are two separate capabilities, <code class="notranslate" translate="no">ScaleLevel</code> and <code class="notranslate" translate="no">Decimated</code>, and a bare image has neither, because nobody wrote them down. Asking anyway is a compile error rather than a plausible zero:</p>
+<p><strong>Trap 2, the two ladders.</strong> Blur and resolution are separate capabilities, <code class="notranslate" translate="no">Decimated</code> and <code class="notranslate" translate="no">ScaleLevel</code>, and a level can hold one without the other. A Gaussian pyramid knows exactly where its samples sit, because it worked that out on the way down. It knows nothing about blur, because blur depends on a fact nobody gave it. So one ladder answers and the other is a compile error, and that asymmetry is the honest one:</p>
 
-<pre class="notranslate" translate="no"><code><span class="cmt">// A Gaussian pyramid's levels are plain images: pixels, but no geometry.</span>
-<span class="kw">let</span> pyr = <span class="ty">Gaussian</span>.build(&amp;base, 3);
+<pre class="notranslate" translate="no"><code><span class="kw">let</span> pyr = <span class="ty">Gaussian</span>.build(&amp;base, 3);
+
+<span class="cmt">// The resolution ladder: derived on the way down, kept by the level.</span>
+pyr.level(1).pixel_distance(); <span class="cmt">// 2.0, in base-image pixels</span>
+pyr.level(1).origin_offset();  <span class="cmt">// (0, 0): pyr_down keeps even samples</span>
+
+<span class="cmt">// The blur ladder is not derivable, so asking is a compile error:</span>
 <span class="kw">let</span> sigma = pyr.level(1).sigma();
-<span class="err">// error[E0599]: no method named `sigma` found for struct `Image&lt;Rgb8&gt;`</span>
-<span class="err">//   = note: `ScaleLevel` is implemented for `ScaledImage`, not for `Image`</span>
+<span class="err">// error[E0599]: no method named `sigma` found for struct `PlacedImage&lt;Rgb8&gt;`</span>
+<span class="err">//   = note: `ScaleLevel` is implemented for `ScaledImage`, not `PlacedImage`</span>
 
-<span class="cmt">// Write the geometry down once, and the level can answer for itself:</span>
-<span class="kw">let</span> level = <span class="ty">ScaledImage</span>::new(
-    pyr.level(1).clone(),
-    pixel_distance!(2.0), <span class="cmt">// stride against the base image, via Decimated</span>
-    <span class="ty">OriginOffset</span>::ZERO,   <span class="cmt">// pyr_down keeps even samples: no half-pixel shift</span>
-    sigma!(1.0),          <span class="cmt">// blur, in base-image pixels, via ScaleLevel</span>
-);
-level.pixel_distance(); <span class="cmt">// the resolution ladder</span>
-level.sigma();          <span class="cmt">// the blur ladder, which a mipmap would simply not offer</span>
+<span class="cmt">// It needs one fact only you have: how sharp was the input? Name it, and</span>
+<span class="cmt">// every level states its own blur.</span>
+<span class="kw">let</span> pyr = <span class="ty">Gaussian</span>.assuming_input_sigma(sigma!(0.5)).build(&amp;base, 3);
+pyr.level(1).sigma(); <span class="cmt">// 1.118</span>
 
 <span class="cmt">// SIFT needs both ladders at once, so its grid is its own type, indexed</span>
 <span class="cmt">// (octave, layer). No octave·(S+3)+layer by hand, no three values in one int.</span></code></pre>
 
+<p>That <code class="notranslate" translate="no">1.118</code> deserves its own paragraph, because an earlier draft of this article wrote <code class="notranslate" translate="no">sigma!(1.0)</code> in that slot and was wrong in precisely the way this article is about. One <code class="notranslate" translate="no">pyr_down</code> applies a blur of σ = 1 measured in its parent&rsquo;s pixels, so level 1 has σ = 1 <em>only if the input was perfectly sharp</em>. No photograph is; Lowe&rsquo;s SIFT assumes σ = 0.5 for its input for exactly this reason. Under that assumption level 1 is √(0.5² + 1²) = 1.118, because variances add and σ does not. The gap widens as you climb: by level 3 the tempting extrapolation from the sampling distance is 13% short of the truth, silently. Writing 1.0 was an unstated assumption in the middle of an argument against unstated assumptions. The fix is not a better constant. It is a method whose name makes you say out loud which assumption you are making.</p>
+
 <p><strong>Trap 3, the way back down.</strong> The best fix is not a safer multiplication, it is not having to multiply. A detector that runs on a level reports in the base frame:</p>
 
 <pre class="notranslate" translate="no"><code><span class="cmt">// Detection on a level already reports base-frame positions: nothing to multiply.</span>
-<span class="kw">let</span> corners = fast_in_level(&amp;level, params, &amp;<span class="ty">Skip</span>);
+<span class="kw">let</span> level = pyr.level(1);
+<span class="kw">let</span> corners = fast_in_level(level, params, &amp;<span class="ty">Skip</span>);
 <span class="cmt">// found on a 32×32 level, reported in 64×64 base coordinates</span>
 
 <span class="cmt">// A point you lift yourself goes through one named method, in both directions:</span>
