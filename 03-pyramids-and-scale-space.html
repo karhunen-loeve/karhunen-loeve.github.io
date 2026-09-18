@@ -892,7 +892,7 @@ pyr.level(1).origin_offset();  <span class="cmt">// (0, 0): pyr_down keeps even 
 
 <span class="cmt">// The blur ladder is not derivable, so asking is a compile error:</span>
 <span class="kw">let</span> sigma = pyr.level(1).sigma();
-<span class="err">// error[E0599]: no method named `sigma` found for struct `PlacedImage&lt;Rgb8&gt;`</span>
+<span class="err">// error[E0599]: no method named `sigma` found for reference `&amp;PlacedImage&lt;Rgb8&gt;`</span>
 <span class="err">//   = note: `ScaleLevel` is implemented for `ScaledImage`, not `PlacedImage`</span>
 
 <span class="cmt">// It needs one fact only you have: how sharp was the input? Name it, and</span>
@@ -910,7 +910,7 @@ pyr.level(1).sigma(); <span class="cmt">// 1.118</span>
 <pre class="notranslate" translate="no"><code><span class="cmt">// Detection on a level already reports base-frame positions: nothing to multiply.</span>
 <span class="kw">let</span> level = pyr.level(1);
 <span class="kw">let</span> corners = fast_in_level(level, params, &amp;<span class="ty">Skip</span>);
-<span class="cmt">// found on a 32×32 level, reported in 64×64 base coordinates</span>
+<span class="cmt">// found on the 51×34 level, reported in 101×68 base coordinates</span>
 
 <span class="cmt">// A point you lift yourself goes through one named method, in both directions:</span>
 <span class="kw">let</span> peak    = <span class="ty">CoordinateF64</span>::new(5.0, 3.0); <span class="cmt">// a sub-pixel peak, in level coordinates</span>
