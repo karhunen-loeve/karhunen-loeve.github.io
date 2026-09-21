@@ -130,9 +130,31 @@
   figure { margin: 1.8rem 0; overflow-x: auto; overscroll-behavior-x: contain; }
   figure svg { display: block; width: 100%; min-width: 38rem; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
   figcaption { position: sticky; left: 0; color: var(--muted); font-size: .85rem; margin-top: .55rem; line-height: 1.5; }
+  /* A code block wider than its box scrolls sideways, and on a phone that is
+     most of them. Scrollbars there are overlays that fade out, so without a
+     cue the block simply ends mid-token. The cue is a faint band of accent
+     at whichever edge has more content beyond it, drawn with background
+     layers alone: two bands that stay put in the box, and over them two
+     covers in the block's own colour that scroll with the content. At the
+     start the left cover hides the left band; the right cover sits at the
+     far end of the content, out of view until the block is scrolled there,
+     when it hides the right band. A block that fits shows neither. */
   pre {
-    background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+    background:
+      linear-gradient(90deg, var(--code-bg) 55%, transparent) 0 0 / 3rem 100%,
+      linear-gradient(270deg, var(--code-bg) 55%, transparent) 100% 0 / 3rem 100%,
+      linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent) 0 0 / 1.6rem 100%,
+      linear-gradient(270deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent) 100% 0 / 1.6rem 100%;
+    background-color: var(--code-bg);
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll;
+    border: 1px solid var(--border); border-radius: 10px;
     padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.6;
+  }
+  @media screen and (max-width: 40.5rem) {
+    /* Comments and compiler messages are prose, so on a phone they wrap like
+       prose. The code lines stay whole, and the block still scrolls for them. */
+    pre .cmt, pre .err { white-space: pre-wrap; }
   }
   code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
   p > code, li > code { background: var(--code-bg); border-radius: 4px; padding: .08em .35em; font-size: .85em; }
@@ -914,7 +936,8 @@ pyr.level(1).sigma(); <span class="cmt">// 1.118</span>
 
 <span class="cmt">// A point you lift yourself goes through one named method, in both directions:</span>
 <span class="kw">let</span> peak    = <span class="ty">CoordinateF64</span>::new(5.0, 3.0); <span class="cmt">// a sub-pixel peak, in level coordinates</span>
-<span class="kw">let</span> in_base = level.to_base(peak);          <span class="cmt">// (10.0, 6.0) = origin_offset + pixel_distance · peak</span>
+<span class="kw">let</span> in_base = level.to_base(peak);          <span class="cmt">// origin_offset + pixel_distance·peak</span>
+                                            <span class="cmt">// gives (10.0, 6.0)</span>
 <span class="kw">let</span> back    = level.to_local(in_base);      <span class="cmt">// (5.0, 3.0) again: the exact inverse</span>
 <span class="cmt">// The half-pixel term is part of the contract of how this level was built,</span>
 <span class="cmt">// not something you had to be at the campfire for.</span></code></pre>
