@@ -9,18 +9,16 @@
   once stamped, the placeholders are gone.
 
 .EXAMPLE
-  # both live the same day (recommended: the series nav then always works)
-  ./stamp-dates.ps1 -Date1 2026-09-11 -Date2 2026-09-11
+  ./stamp-dates.ps1 -Date1 2026-08-18 -Date2 2026-08-25 -Date3 2026-09-01
 
 .EXAMPLE
-  # Part 3 as well, once it is no longer held back. Omitting -Date3 is normal
-  # while it is: no @@DATE3@@ placeholder is in the published tree.
-  ./stamp-dates.ps1 -Date1 2026-09-11 -Date2 2026-09-11 -Date3 2026-10-09
+  # all three live the same day (recommended: the series nav then always works)
+  ./stamp-dates.ps1 -Date1 2026-08-18 -Date2 2026-08-18 -Date3 2026-08-18
 #>
 param(
   [Parameter(Mandatory)][datetime]$Date1,
   [Parameter(Mandatory)][datetime]$Date2,
-  [nullable[datetime]]$Date3
+  [Parameter(Mandatory)][datetime]$Date3
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,10 +33,6 @@ $here = $PSScriptRoot
 $map = @{}
 $i = 1
 foreach ($d in @($Date1, $Date2, $Date3)) {
-  # $Date3 is optional while Part 3 is held back: the post is not in the
-  # published tree, so no @@DATE3@@ placeholder is left to fill. Skipping keeps
-  # the numbering of the remaining placeholders intact.
-  if ($null -eq $d) { $i++; continue }
   # One calendar day, written twice: RFC 3339 in UTC because Atom and
   # og:article:published_time want that, and in prose because the byline does.
   #

@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title translate="no">Climbing the Pyramid: Resolution, Blur, and the Coordinates You Lost on the Way Down</title>
+<meta name="description" content="Shrink an image to detect objects at any size and you inherit a staircase of traps: odd sizes that never round-trip, blur versus resolution, half-pixel coordinate drift.">
+<meta name="author" content="Thomas Stephan">
+<link rel="canonical" href="https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="alternate" type="application/atom+xml" href="/feed.xml" title="Type-Safe Computer Vision">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Type-Safe Computer Vision">
+<meta property="og:title" content="Climbing the Pyramid: Resolution, Blur, and the Coordinates You Lost on the Way Down">
+<meta property="og:description" content="Shrink an image to detect objects at any size and you inherit a staircase of traps: odd sizes that never round-trip, blur versus resolution, half-pixel coordinate drift.">
+<meta property="og:url" content="https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html">
+<meta property="og:image" content="https://karhunen-loeve.github.io/images/og-03.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Three rectangles, each half the width and height of the one before it, labelled 200 by 100, 100 by 50 and 50 by 25.">
+<meta property="article:author" content="Thomas Stephan">
+<meta property="article:published_time" content="2026-09-21T12:00:00Z">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    color-scheme: dark;
+    /* The landing page palette, carried under the names this page already
+       uses, so every inline figure keeps working without being touched. */
+    --page:        #0b1418;
+    --surface:     #121e23;
+    --ink:         #edfffa;
+    --ink-2:       #b2d3cb;
+    --muted:       #82a49c;
+    --hairline:    #16302e;
+    --border:      rgba(87,255,207,0.16);
+    --accent:      #57ffcf;
+    --bad:         #ff8d8d;
+    --good:        #6ee7a8;
+    --code-bg:     #0e181c;
+    /* The generated tool rail maps its own variables onto these two names.
+       They are aliases of --surface and --muted above, and they have to
+       exist: var() without a fallback on an undefined property makes the
+       whole declaration invalid, which left the rail transparent. */
+    --panel:       #121e23;
+    --ink-3:       #82a49c;
+    --accent-2:    #ffc166;
+    --fill-soft:   #16262b;
+    /* the texture layers, same three as the landing page */
+    --g-fine:      #102526;
+    --g-mid:       #17383a;
+    --g-coarse:    #1e4a4c;
+    --grid-2:      #204f49;
+    --phos:        #57ffcf;
+    --phos-2:      #2ae0b1;
+    --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  /* ---------- the site texture, three fixed layers under the text ---------- */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--g-fine) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-fine) 1px, transparent 1px),
+      linear-gradient(var(--g-mid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-mid) 1px, transparent 1px),
+      linear-gradient(var(--g-coarse) 1px, transparent 1px),
+      linear-gradient(90deg, var(--g-coarse) 1px, transparent 1px);
+    background-size:
+      100% 16px, 16px 100%,
+      100% 64px, 64px 100%,
+      100% 256px, 256px 100%;
+    -webkit-mask: linear-gradient(#000 0 18%, rgba(0,0,0,.44) 70%, rgba(0,0,0,.36));
+            mask: linear-gradient(#000 0 18%, rgba(0,0,0,.44) 70%, rgba(0,0,0,.36));
+  }
+  #cells {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    width: 100%; height: 100%; display: block;
+    image-rendering: pixelated;
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    opacity: .42;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23g)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- masthead, and a way back to the index ---------- */
+  .mast {
+    position: relative; z-index: 2;
+    max-width: 44rem; margin: 0 auto; padding: 1.5rem 1.25rem 1rem;
+    display: flex; align-items: baseline; gap: 1.1rem; flex-wrap: wrap;
+    border-bottom: 1px solid var(--hairline);
+    font: 600 .7rem/1 var(--mono); letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .mast a.brand {
+    color: var(--phos); font-weight: 700; letter-spacing: .26em;
+    text-decoration: none; text-shadow: 0 0 16px rgba(87,255,207,.35);
+  }
+  .mast a.brand:hover { color: var(--ink); }
+  .mast .sp { flex: 1; }
+
+  article { position: relative; z-index: 2;
+            max-width: 44rem; margin: 0 auto; padding: 1.6rem 1.25rem 5rem; }
+  .kicker { color: var(--accent); font-weight: 600; font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { font-size: 2.2rem; line-height: 1.15; margin: .4rem 0 0.6rem; letter-spacing: -0.02em; }
+  .dek { color: var(--ink-2); font-size: 1.15rem; margin: 0 0 2.5rem; }
+  h2 { font-size: 1.4rem; margin: 2.6rem 0 0.8rem; letter-spacing: -0.01em; }
+  p  { margin: 0 0 1.1rem; }
+  /* The drawings are laid out on a 680 unit canvas and their labels are 11 to
+     13 units tall. Let that canvas shrink to the width of a phone column and
+     the labels arrive at six pixels, which is not reading, it is guessing. So
+     below the width where they stay legible the drawing keeps its own size and
+     the figure pans sideways instead of shrinking. 38rem is the narrowest that
+     still holds the smallest label at ten pixels, and it is narrower than the
+     text column, so nothing above phone width changes.
+
+     The caption is a block child of the scroll box, so it takes the box width
+     rather than the drawing beside it, and pinning it to the left edge keeps
+     it still while the drawing slides underneath. */
+  figure { margin: 1.8rem 0; overflow-x: auto; overscroll-behavior-x: contain; }
+  figure svg { display: block; width: 100%; min-width: 38rem; height: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  figcaption { position: sticky; left: 0; color: var(--muted); font-size: .85rem; margin-top: .55rem; line-height: 1.5; }
+  /* A code block wider than its box scrolls sideways, and on a phone that is
+     most of them. Scrollbars there are overlays that fade out, so without a
+     cue the block simply ends mid-token. The cue is a faint band of accent
+     at whichever edge has more content beyond it, drawn with background
+     layers alone: two bands that stay put in the box, and over them two
+     covers in the block's own colour that scroll with the content. At the
+     start the left cover hides the left band; the right cover sits at the
+     far end of the content, out of view until the block is scrolled there,
+     when it hides the right band. A block that fits shows neither. */
+  pre {
+    background:
+      linear-gradient(90deg, var(--code-bg) 55%, transparent) 0 0 / 3rem 100%,
+      linear-gradient(270deg, var(--code-bg) 55%, transparent) 100% 0 / 3rem 100%,
+      linear-gradient(90deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent) 0 0 / 1.6rem 100%,
+      linear-gradient(270deg, color-mix(in srgb, var(--accent) 16%, transparent), transparent) 100% 0 / 1.6rem 100%;
+    background-color: var(--code-bg);
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll;
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.6;
+  }
+  @media screen and (max-width: 40.5rem) {
+    /* Comments and compiler messages are prose, so on a phone they wrap like
+       prose. The code lines stay whole, and the block still scrolls for them. */
+    pre .cmt, pre .err { white-space: pre-wrap; }
+  }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  p > code, li > code { background: var(--code-bg); border-radius: 4px; padding: .08em .35em; font-size: .85em; }
+  .cmt  { color: var(--muted); }
+  .kw   { color: var(--accent); font-weight: 600; }
+  .ty   { color: #5fd3a6; }
+  .err  { color: var(--bad); }
+  .pull {
+    border-left: 3px solid var(--accent); padding: .2rem 0 .2rem 1.1rem;
+    margin: 1.8rem 0; color: var(--ink-2); font-size: 1.12rem; font-style: italic;
+  }
+  .footer-nav { margin-top: 4rem; padding-top: 1.2rem; border-top: 1px solid var(--hairline); color: var(--muted); font-size: .85rem; }
+  .footer-nav a { color: var(--accent); text-decoration: none; }
+  .footer-nav a:hover { text-decoration: underline; }
+  .svg-ink   { fill: var(--ink); }
+  .svg-ink2  { fill: var(--ink-2); }
+  .svg-muted { fill: var(--muted); }
+  text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .dek { margin-bottom: 0.9rem; }
+  .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
+  .byline a { color: var(--accent); text-decoration: none; }
+  .byline a:hover { text-decoration: underline; }
+
+  /* ---------- Figs. 1 to 6 on a phone ----------
+     Below 38rem the drawings pan, and for these six that crops the thing each
+     one exists to show: the staircase of levels under a detector that never
+     changes, the round trip that comes back the wrong size, the two axes, the
+     grid, the drift, the two footprints. So where a drawing would start to pan
+     it gives way to a second rendering of the same content laid out for a
+     column: HTML where the figure is boxes and labels (Figs. 2 and 4), the
+     same drawing redrawn on a 340 unit canvas with its prose moved to a key
+     beneath (Figs. 1, 5 and 6), a grid of four small canvases where it is a
+     matrix (Fig. 3). Real text at rem sizes never gets too small, the colours
+     come from the same variables as the rest of the page, so the print palette
+     needs nothing extra, and the switch is `screen` only: paper is wide, and
+     the print rules already let the drawings out of their scroll box. Each
+     copy carries its drawing's accessible name, since display: none takes the
+     other out of the accessibility tree as well.
+
+     40.5rem is the drawing's 38rem plus the article's 1.25rem of padding on
+     either side: the viewport width at which the scroll box would first move,
+     so there is no band where a drawing pans although its stack exists. */
+  .fig-narrow { display: none; }
+  @media screen and (max-width: 40.5rem) {
+    .fig-wide { display: none; }
+    .fig-narrow {
+      display: block; padding: 1.1rem 1rem 1rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    }
+    .fig-narrow code { background: none; padding: 0; }
+
+    /* A redrawn canvas is an svg inside a figure, so the panel border and the
+       38rem floor above would land on it a second time. Both are undone here.
+       Capped so that just under the switch, where the column is still 600px
+       wide, a 340 unit drawing is not blown up to nearly twice its size. */
+    .fig-narrow .plot {
+      display: block; width: 100%; max-width: 26rem; min-width: 0; height: auto;
+      margin: 0 auto; background: none; border: 0; border-radius: 0;
+    }
+    /* The two pyramids are several times as tall as they are wide, so they get
+       a tighter cap: a wider one buys detail nobody needs and costs a
+       screenful of scrolling. */
+    .fig-narrow .plot.tall { max-width: 21rem; }
+
+    /* Where prose leaves a drawing it lands in one of these, and all three
+       wrap: a lead line above, a key with one line per level, a note under. */
+    .fig-narrow .lead { margin: 0 0 .7rem; color: var(--ink-2); font-size: .8rem; line-height: 1.45; }
+    .fig-narrow .key { list-style: none; margin: .9rem 0 0; padding: 0; color: var(--ink-2); font-size: .85rem; line-height: 1.5; }
+    .fig-narrow .key li + li { margin-top: .25rem; }
+    .fig-narrow .key b { color: var(--ink); font-weight: 600; }
+    .fig-narrow .note { margin: .8rem 0 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+    .fig-narrow .ax { margin: 0; color: var(--ink-2); font-size: .8rem; font-weight: 600; }
+    .fig-narrow .ax + .ax { margin: .1rem 0 .9rem; }
+
+    /* Fig. 2. Three boxes and two arrows, which is a stack already; it only
+       ran left to right because there was room. The widths keep the drawing's
+       proportions, so 51 still reads as half of 101. */
+    .fig-narrow .flow { text-align: center; }
+    .fig-narrow .box {
+      width: 70%; margin: 0 auto; padding: .55rem 0; border-radius: 6px;
+      background: var(--fill-soft); border: 1px solid var(--border);
+      font-family: var(--mono); font-size: .95rem; color: var(--ink);
+    }
+    .fig-narrow .box.half { width: 38%; }
+    .fig-narrow .box.wrong { width: 54%; background: none; color: var(--bad); border: 2px dashed var(--bad); }
+    .fig-narrow .arrow { margin: .4rem 0; color: var(--muted); font-size: .8rem; }
+    .fig-narrow .arrow::before { content: "\2193"; display: block; font-size: 1.1rem; line-height: 1.2; }
+    .fig-narrow .errline { margin: 1.1rem 0 0; color: var(--bad); font-family: var(--mono); font-size: .78rem; line-height: 1.5; }
+
+    /* Fig. 3. The matrix stays a matrix: four cells stacked in one column
+       would throw away the one thing it argues, that the two axes are
+       independent. Each cell carries its own defs, because two patterns of the
+       same id in one document are one pattern. */
+    .fig-narrow .grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem .7rem; }
+    .fig-narrow .grid4 svg {
+      display: block; width: 100%; min-width: 0; height: auto;
+      background: none; border: 0; border-radius: 0;
+    }
+    .fig-narrow .grid4 .cap { margin: .4rem 0 0; color: var(--ink); font-size: .8rem; font-weight: 600; line-height: 1.35; }
+    .fig-narrow .grid4 .sub { margin: .2rem 0 0; color: var(--muted); font-size: .72rem; line-height: 1.35; }
+
+    /* Fig. 4. Three octaves as rows, three layers as columns, and the rows
+       still halve in width. min-width keeps a cell from shrinking past its own
+       sigma value on the narrowest phone, where the percentage alone would. */
+    .fig-narrow .sift { display: grid; grid-template-columns: 1.5rem repeat(3, 1fr); gap: .35rem .3rem; align-items: center; }
+    .fig-narrow .sift .oct { color: var(--muted); font-family: var(--mono); font-size: .75rem; }
+    .fig-narrow .sift .cell {
+      padding: .45rem .2rem; border-radius: 4px; text-align: center; white-space: nowrap;
+      background: var(--fill-soft); border: 1px solid var(--border);
+      font-family: var(--mono); font-size: .66rem; color: var(--ink); min-width: 3.7rem;
+    }
+    .fig-narrow .sift .oc1 { width: 78%; }
+    .fig-narrow .sift .oc2 { width: 60%; }
+
+    /* Fig. 6. Two panels one under the other, each with its heading above and
+       its verdict below, so nothing has to sit beside the row of pixels. */
+    .fig-narrow .panel + .panel { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--hairline); }
+    .fig-narrow .panel-title { margin: 0; color: var(--ink); font-size: .85rem; font-weight: 600; line-height: 1.4; }
+    .fig-narrow .panel-sub { margin: .2rem 0 .6rem; color: var(--muted); font-size: .78rem; line-height: 1.4; }
+    .fig-narrow .verdict { margin: .5rem 0 0; text-align: center; font-family: var(--mono); font-size: .8rem; }
+    .fig-narrow .verdict.ok { color: var(--good); }
+    .fig-narrow .verdict.off { color: var(--bad); }
+  }
+  /* ---------- print ---------- */
+  /* A browser leaves backgrounds out of a printout and keeps text colours,
+     and this palette is light ink on a dark ground. Printing part 2 gave a
+     PDF with 28 pure-white fills sitting on unmarked paper, so the page was
+     partly blank without ever saying so.
+
+     The fix is a palette rather than a stylesheet. Every rule on the page,
+     and every inline figure, already reads its colours from these names, so
+     redefining them turns the whole thing over at once, figures included.
+
+     The fixed texture layers and the tinted canvas go: an ornament made for
+     a screen is only toner on paper. The panning figures are let out of
+     their scroll box, since on paper a scroll box is a crop. */
+  @media print {
+    :root {
+      color-scheme: light;
+      --page: #fff; --surface: #fff; --ink: #000; --ink-2: #1a1a1a;
+      --muted: #444; --hairline: #b4b4b4; --border: #b4b4b4;
+      --accent: #00563f; --bad: #9b1c1c; --good: #14532d; --code-bg: #f5f5f5;
+      --panel: #fff; --ink-3: #444; --accent-2: #6b3f00; --fill-soft: #eee;
+      --g-fine: transparent; --g-mid: transparent; --g-coarse: transparent;
+      --grid-2: #b4b4b4; --phos: #00563f; --phos-2: #00563f;
+    }
+    body { padding-left: 0; }
+    body::before, body::after, #cells { display: none; }
+    figure { overflow: visible; }
+    figure svg { min-width: 0; }
+    figure, pre, table { break-inside: avoid; }
+  }
+  /* ── browser-tools rail ── begin ──────────────────────────────────────── */
+  :root { --fv-w: 15.5rem; }
+  .fv-rail, .fv-rail-toggle, .fv-skip {
+    --fv-bg: var(--panel);
+    --fv-ink: var(--ink);
+    --fv-ink-2: var(--ink-2);
+    --fv-muted: var(--ink-3);
+    --fv-line: var(--grid-2);
+    --fv-accent: var(--phos);
+    --fv-radius: 3px;
+    --fv-font: 500 .78rem/1.5 var(--mono);
+    --fv-mono: var(--mono);
+  }
+  .fv-rail {
+    position: fixed; z-index: 60; inset: 0 auto 0 0; width: var(--fv-w);
+    display: flex; flex-direction: column; gap: .85rem;
+    padding: 1.3rem 1rem 1.1rem;
+    background: var(--fv-bg); color: var(--fv-ink); font: var(--fv-font);
+    border-right: 1px solid var(--fv-line);
+    overflow-y: auto; overscroll-behavior: contain;
+  }
+  .fv-rail-kicker {
+    margin: 0; font: 700 .62rem/1 var(--fv-mono); letter-spacing: .18em;
+    text-transform: uppercase; color: var(--fv-muted);
+  }
+  .fv-rail-claim {
+    margin: 0; padding: .55rem .6rem; border-radius: var(--fv-radius);
+    border: 1px solid var(--fv-line);
+    font-size: .74rem; line-height: 1.5; color: var(--fv-ink-2);
+  }
+  .fv-rail-badge {
+    display: inline-block; margin-right: .4rem;
+    font: 700 .58rem/1 var(--fv-mono); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--fv-accent); border: 1px solid currentColor; border-radius: 99px;
+    padding: .2rem .42rem; vertical-align: .06em;
+  }
+  .fv-rail-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+  .fv-rail-item {
+    display: grid; grid-template-columns: 1.35rem 1fr; gap: .55rem; align-items: start;
+    padding: .5rem .55rem; border-radius: var(--fv-radius);
+    border: 1px solid transparent; text-decoration: none; color: inherit;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  a.fv-rail-item:hover, a.fv-rail-item:focus-visible {
+    border-color: var(--fv-accent); color: var(--fv-accent); outline: none;
+  }
+  a.fv-rail-item[aria-current="page"] { border-color: var(--fv-accent); color: var(--fv-accent); }
+  .fv-rail-item svg { width: 1.35rem; height: 1.35rem; display: block; margin-top: .1rem; }
+  .fv-rail-name { display: block; font-weight: 600; }
+  .fv-rail-desc { display: block; font-size: .71rem; line-height: 1.4; color: var(--fv-muted); margin-top: .1rem; }
+  .fv-rail-item.is-planned { color: var(--fv-muted); cursor: default; }
+  .fv-rail-item.is-planned .fv-rail-name { font-weight: 500; }
+  .fv-rail-soon {
+    font: 700 .55rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--fv-muted); border: 1px solid var(--fv-line); border-radius: 99px;
+    padding: .18rem .38rem; margin-left: .35rem; vertical-align: .1em;
+  }
+  .fv-rail-foot {
+    margin: auto 0 0; padding-top: .8rem; border-top: 1px solid var(--fv-line);
+    font-size: .69rem; line-height: 1.55; color: var(--fv-muted);
+  }
+  .fv-rail-foot a { color: inherit; }
+  .fv-rail-toggle {
+    position: fixed; z-index: 61; left: .7rem; bottom: .7rem;
+    display: none; align-items: center; gap: .45rem;
+    padding: .55rem .8rem; border-radius: 99px; cursor: pointer;
+    background: var(--fv-bg); color: var(--fv-ink);
+    border: 1px solid var(--fv-line);
+    font: 700 .68rem/1 var(--fv-mono); letter-spacing: .12em; text-transform: uppercase;
+    box-shadow: 0 4px 18px rgba(0,0,0,.35);
+  }
+  .fv-rail-toggle svg { width: .95rem; height: .95rem; }
+  /* Sits above the page and drops into view only while it has focus, which
+     is the one moment it is any use. It is inserted as the first child of
+     the body, so it is the first thing a Tab reaches. */
+  .fv-skip {
+    position: fixed; z-index: 62; top: .6rem; left: .6rem;
+    transform: translateY(-180%); transition: transform .15s ease;
+    padding: .5rem .8rem; border-radius: var(--fv-radius);
+    background: var(--fv-accent); color: var(--fv-bg);
+    font: 700 .7rem/1 var(--fv-mono); letter-spacing: .1em;
+    text-transform: uppercase; text-decoration: none;
+  }
+  .fv-skip:focus { transform: none; }
+  body { padding-left: var(--fv-w); }
+  @media (max-width: 62rem) {
+    body { padding-left: 0; }
+    /* Pushed off screen the panel was still in the tab order, so three
+       invisible links sat between the toggle and the article and the caret
+       disappeared into them. `visibility` takes it out of the order as well.
+
+       The two directions need different timing, hence the pair of rules.
+       Going out, the switch waits for the slide to finish, or the panel would
+       vanish on the spot instead of leaving. Coming in it has to be immediate:
+       with the switch left to the transition it landed a frame late, and
+       focus() on a panel that is still hidden does nothing, silently, which is
+       exactly how the first version of this failed to move the caret. */
+    .fv-rail {
+      transform: translateX(-102%);
+      transition: transform .22s ease, visibility 0s linear .22s;
+      visibility: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,.45); width: min(19rem, 84vw);
+    }
+    .fv-rail.open {
+      transform: none; visibility: visible;
+      transition: transform .22s ease, visibility 0s;
+    }
+    .fv-rail-toggle { display: inline-flex; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fv-rail, .fv-skip { transition: none; }
+  }
+  /* None of this belongs on paper. The panel is fixed, so a printout carried
+     it across the first page on top of the text, and the toggle and the skip
+     link are both instructions for something a sheet of paper cannot do. */
+  @media print {
+    .fv-rail, .fv-rail-toggle, .fv-skip { display: none; }
+  }
+  /* ── browser-tools rail ── end ────────────────────────────────────────── */
+</style>
+<!-- Structured data, the one description of this page a machine is actually
+     going to parse. The visible text says the same things; this says them in
+     a shape a search engine or an assistant can act on, so the page is cited
+     as an article by a named author rather than as an anonymous URL.
+     The dates carry the same placeholders as everything else and are filled
+     by stamp-dates.ps1. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "@id": "https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html",
+  "url": "https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html",
+  "mainEntityOfPage": "https://karhunen-loeve.github.io/03-pyramids-and-scale-space.html",
+  "headline": "Climbing the Pyramid: Resolution, Blur, and the Coordinates You Lost on the Way Down",
+  "description": "Shrink an image to detect objects at any size and you inherit a staircase of traps: odd sizes that never round-trip, blur versus resolution, half-pixel coordinate drift.",
+  "image": "https://karhunen-loeve.github.io/images/og-03.png",
+  "inLanguage": "en",
+  "datePublished": "2026-09-21T12:00:00Z",
+  "dateModified": "2026-09-21T12:00:00Z",
+  "author": {
+    "@type": "Person",
+    "name": "Thomas Stephan",
+    "url": "https://github.com/karhunen-loeve",
+    "sameAs": [
+      "https://github.com/karhunen-loeve",
+      "https://mastodon.social/@karhunen_loeve"
+    ]
+  },
+  "publisher": {
+    "@type": "Person",
+    "name": "Thomas Stephan",
+    "url": "https://github.com/karhunen-loeve",
+    "sameAs": [
+      "https://github.com/karhunen-loeve",
+      "https://mastodon.social/@karhunen_loeve"
+    ]
+  },
+  "isPartOf": {
+    "@type": "Blog",
+    "@id": "https://karhunen-loeve.github.io/#blog",
+    "name": "Type-Safe Computer Vision",
+    "url": "https://karhunen-loeve.github.io/"
+  },
+  "position": 3,
+  "keywords": [
+    "computer vision",
+    "rust",
+    "type systems",
+    "image processing"
+  ]
+}
+</script>
+</head>
+<body>
+<canvas id="cells" aria-hidden="true"></canvas>
+<!-- browser-tools rail: begin -->
+<button class="fv-rail-toggle" type="button" aria-expanded="false" aria-controls="fv-rail">
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+    <path d="M2 4h12M2 8h12M2 12h12"/>
+  </svg>
+  Tools
+</button>
+
+<nav class="fv-rail" id="fv-rail" aria-label="Browser tools">
+  <p class="fv-rail-kicker">Browser tools</p>
+  <p class="fv-rail-claim">
+    <span class="fv-rail-badge">wasm</span>
+    These run <strong>on your machine</strong>. The image you pick is decoded, measured and
+    drawn inside this tab. It is never uploaded, and the page makes no network request once
+    it has loaded.
+  </p>
+  <ul class="fv-rail-list">
+    <li>
+      <a class="fv-rail-item" href="tools/fast-corners.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M4 20V8l8-4 8 4v12"/><circle cx="12" cy="12" r="2.2"/>
+          <path d="M12 4v3.8M4 8l6 2.9M20 8l-6 2.9M12 14.2V20"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name notranslate" translate="no">FAST corners</span>
+          <span class="fv-rail-desc">Segment test, ranked and refined to sub-pixel</span>
+        </span>
+      </a>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 5v14"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name notranslate" translate="no">PNG chunks<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Every chunk, and which colour signal is missing</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <path d="M3 20C7 20 8 4 21 4"/><path d="M3 20h18"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name notranslate" translate="no">Gamma playground<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">Resize in sRGB and in linear light, side by side</span>
+        </span>
+      </span>
+    </li>
+    <li>
+      <span class="fv-rail-item is-planned">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11M15 9v11"/>
+        </svg>
+        <span>
+          <span class="fv-rail-name notranslate" translate="no">Resize weights<span class="fv-rail-soon">soon</span></span>
+          <span class="fv-rail-desc">The tap table, and whose convention it matches</span>
+        </span>
+      </span>
+    </li>
+  </ul>
+  <p class="fv-rail-foot">
+    Powered by <a href="https://github.com/karhunen-loeve/fovea">fovea</a>, a type-safe computer
+    vision crate for Rust, compiled to WebAssembly.
+    <br><a href="tools/index.html">All tools</a>
+  </p>
+</nav>
+
+<script>
+(function () {
+  var rail = document.getElementById("fv-rail");
+  var btn = document.querySelector(".fv-rail-toggle");
+  if (!rail || !btn) return;
+
+  function set(open) {
+    rail.classList.toggle("open", open);
+    btn.setAttribute("aria-expanded", String(open));
+  }
+
+  btn.addEventListener("click", function () {
+    var open = !rail.classList.contains("open");
+    set(open);
+    // The toggle is reached by keyboard as often as by thumb, so send the
+    // caret where the panel is, and hand it back on the way out. Without
+    // that, closing leaves focus on a link that has just gone invisible.
+    //
+    // A frame later, not straight away: until the class change has been taken
+    // into account the panel is still hidden, and focus() on something hidden
+    // does nothing at all and reports nothing either. Measured going nowhere
+    // before this was added.
+    if (open) {
+      requestAnimationFrame(function () {
+        var first = rail.querySelector("a, button");
+        if (first) first.focus();
+      });
+    } else {
+      btn.focus();
+    }
+  });
+
+  // Escape, and a press anywhere outside. The panel covers the text it sits
+  // on, and reaching back to a button in the far corner to be rid of it is a
+  // chore on a phone.
+  addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && rail.classList.contains("open")) {
+      set(false);
+      btn.focus();
+    }
+  });
+  addEventListener("pointerdown", function (e) {
+    if (!rail.classList.contains("open")) return;
+    if (rail.contains(e.target) || btn.contains(e.target)) return;
+    set(false);
+  });
+
+  // The rail comes before the article in the source, so a keyboard and a
+  // screen reader both meet the tool list before the writing. Hence a skip
+  // link, built here rather than written into the markup: it needs a target,
+  // the target lives outside this block and is named differently on every
+  // page, and a skip link pointing at nothing is worse than no skip link.
+  // Built only once a target has actually been found, so it cannot be a dud.
+  //
+  // Waiting for the document, because this block sits at the top of the body
+  // and runs while the parser is still on its way to the article. Asking for
+  // it now finds nothing, which is how the first attempt shipped no link at
+  // all. With scripting off there is no link either, which is the honest
+  // outcome: there would be nothing to give it a target.
+  function skipLink() {
+    var main = document.querySelector("article, main");
+    if (!main || !document.body) return;
+    if (!main.id) main.id = "fv-content";
+    main.tabIndex = -1;
+    var skip = document.createElement("a");
+    skip.className = "fv-skip";
+    skip.href = "#" + main.id;
+    skip.textContent = "Skip to content";
+    document.body.insertBefore(skip, document.body.firstChild);
+  }
+  if (document.readyState === "loading") {
+    addEventListener("DOMContentLoaded", skipLink);
+  } else {
+    skipLink();
+  }
+})();
+</script>
+<!-- browser-tools rail: end -->
+<div class="mast">
+  <a class="brand" href="/">Karhunen-Loeve</a>
+  <span>type-safe computer vision</span>
+  <span class="sp"></span>
+  <span>part 03 of 3</span>
+</div>
+<article>
+
+<p class="kicker"><span class="notranslate" translate="no">Type-Safe Computer Vision</span> · Part 3 of 3</p>
+<h1 class="notranslate" translate="no">Climbing the Pyramid</h1>
+<p class="dek">To find an object at any size, you shrink the image until the object fits your detector. Simple idea, beautiful theory. In practice, a staircase of traps: sizes that stop matching, two “scales” that aren’t the same thing, and coordinates that quietly drift half a pixel per step.</p>
+<p class="byline"><span class="notranslate" translate="no">Thomas Stephan</span> · <time datetime="2026-09-21T12:00:00Z">21 September 2026</time> · <a href="/">Series index</a></p>
+
+<h2>Why pyramids exist at all</h2>
+
+<p>Your detector looks for a face 40 pixels wide. The face in the photo is 400 pixels wide. Nobody retrains the detector. You shrink the <em>image</em>: half size, quarter size, eighth size, and run the same detector on every level. Stack the levels and you get the data structure every vision textbook opens with:</p>
+
+<figure>
+<svg class="fig-wide" viewBox="0 0 680 512" role="img" aria-label="An image pyramid of four levels, each half the width and height of the one below it, drawn with a pixel grid so the halving is visible: 32 by 24 pixels, then 16 by 12, 8 by 6 and 4 by 3. A circular object sits in the middle of every level and shrinks with it. The same fixed-size detector box is drawn at every level; it is too small for the object at the bottom two levels, matches it at the third, and is larger than the object at the top.">
+  <defs>
+    <pattern id="px" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <!-- level 3: ⅛ : 4x3 pixels at ten units each -->
+  <g>
+    <rect x="320" y="10" width="40" height="30" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="340" cy="25" r="6.5" fill="var(--accent)" opacity="0.8"/>
+    <rect x="320" y="10" width="40" height="30" fill="url(#px)" stroke="var(--border)"/>
+    <rect x="327" y="12" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    <text x="308" y="29" text-anchor="end" class="svg-muted notranslate" font-size="12" translate="no">level 3: ⅛</text>
+    <text x="372" y="29" class="svg-ink2 notranslate" font-size="12.5" translate="no">object smaller than the detector ✗</text>
+  </g>
+  <!-- level 2: ¼ : 8x6 pixels at ten units each -->
+  <g>
+    <rect x="300" y="50" width="80" height="60" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="340" cy="80" r="13" fill="var(--accent)" opacity="0.8"/>
+    <rect x="300" y="50" width="80" height="60" fill="url(#px)" stroke="var(--border)"/>
+    <rect x="327" y="67" width="26" height="26" fill="none" stroke="var(--good)" stroke-width="2"/>
+    <text x="288" y="84" text-anchor="end" class="svg-muted notranslate" font-size="12" translate="no">level 2: ¼</text>
+    <text x="392" y="84" class="svg-ink2 notranslate" font-size="12.5" translate="no">detector matches the object ✓</text>
+  </g>
+  <!-- level 1: ½ : 16x12 pixels at ten units each -->
+  <g>
+    <rect x="260" y="120" width="160" height="120" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="340" cy="180" r="26" fill="var(--accent)" opacity="0.8"/>
+    <rect x="260" y="120" width="160" height="120" fill="url(#px)" stroke="var(--border)"/>
+    <rect x="327" y="167" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    <text x="248" y="184" text-anchor="end" class="svg-muted notranslate" font-size="12" translate="no">level 1: ½</text>
+    <text x="432" y="184" class="svg-ink2 notranslate" font-size="12.5" translate="no">object still too large ✗</text>
+  </g>
+  <!-- level 0: full : 32x24 pixels at ten units each -->
+  <g>
+    <rect x="180" y="250" width="320" height="240" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="340" cy="370" r="52" fill="var(--accent)" opacity="0.8"/>
+    <rect x="180" y="250" width="320" height="240" fill="url(#px)" stroke="var(--border)"/>
+    <rect x="327" y="357" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    <text x="168" y="374" text-anchor="end" class="svg-muted notranslate" font-size="12" translate="no">level 0: full</text>
+    <text x="512" y="374" class="svg-ink2 notranslate" font-size="12.5" translate="no">object much too large ✗</text>
+  </g>
+  <text x="340" y="466" text-anchor="middle" class="svg-ink notranslate" font-size="12.5" translate="no">the object you are looking for</text>
+  <text x="512" y="300" class="svg-ink2 notranslate" font-size="12.5" translate="no">the detector never</text>
+  <text x="512" y="318" class="svg-ink2 notranslate" font-size="12.5" translate="no">changes size: 26×26 px</text>
+</svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="An image pyramid of four levels, each half the width and height of the one below it, drawn with a pixel grid so the halving is visible: 32 by 24 pixels, then 16 by 12, 8 by 6 and 4 by 3. A circular object sits in the middle of every level and shrinks with it. The same fixed-size detector box is drawn at every level; it is too small for the object at the bottom two levels, matches it at the third, and is larger than the object at the top.">
+  <p class="lead">The detector never changes size: 26×26 px. The object shrinks with the level.</p>
+  <svg class="plot tall" viewBox="0 0 340 566">
+    <defs>
+      <pattern id="pxn" width="10" height="10" patternUnits="userSpaceOnUse">
+        <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
+      </pattern>
+    </defs>
+    <text x="10" y="18" class="svg-muted notranslate" font-size="12" translate="no">level 3: ⅛</text>
+    <g>
+      <rect x="150" y="26" width="40" height="30" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="170" cy="41" r="6.5" fill="var(--accent)" opacity="0.8"/>
+      <rect x="150" y="26" width="40" height="30" fill="url(#pxn)" stroke="var(--border)"/>
+      <rect x="157" y="28" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    </g>
+    <text x="10" y="76" class="svg-muted notranslate" font-size="12" translate="no">level 2: ¼</text>
+    <g>
+      <rect x="130" y="84" width="80" height="60" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="170" cy="114" r="13" fill="var(--accent)" opacity="0.8"/>
+      <rect x="130" y="84" width="80" height="60" fill="url(#pxn)" stroke="var(--border)"/>
+      <rect x="157" y="101" width="26" height="26" fill="none" stroke="var(--good)" stroke-width="2"/>
+    </g>
+    <text x="10" y="164" class="svg-muted notranslate" font-size="12" translate="no">level 1: ½</text>
+    <g>
+      <rect x="90" y="172" width="160" height="120" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="170" cy="232" r="26" fill="var(--accent)" opacity="0.8"/>
+      <rect x="90" y="172" width="160" height="120" fill="url(#pxn)" stroke="var(--border)"/>
+      <rect x="157" y="219" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    </g>
+    <text x="10" y="312" class="svg-muted notranslate" font-size="12" translate="no">level 0: full</text>
+    <g>
+      <rect x="10" y="320" width="320" height="240" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="170" cy="440" r="52" fill="var(--accent)" opacity="0.8"/>
+      <rect x="10" y="320" width="320" height="240" fill="url(#pxn)" stroke="var(--border)"/>
+      <rect x="157" y="427" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    </g>
+  </svg>
+  <ul class="key">
+    <li><b>level 3 · ⅛:</b> object smaller than the detector ✗</li>
+    <li><b>level 2 · ¼:</b> detector matches the object ✓</li>
+    <li><b>level 1 · ½:</b> object still too large ✗</li>
+    <li><b>level 0 · full:</b> object much too large ✗</li>
+  </ul>
+</div>
+<figcaption>Fig. 1. An image pyramid. The detector never changes size; the world does. Somewhere on the staircase, every object passes through the size your detector understands.</figcaption>
+</figure>
+
+<p>Each level is made by blurring the previous one a little (so shrinking doesn’t alias) and throwing away every second pixel. Two operations, <em>blur</em> and <em>shrink</em>, done together, over and over. Hold that thought: <strong>two</strong> operations. It becomes important in a minute.</p>
+
+<h2>Trap 1: the staircase doesn’t come back up</h2>
+
+<p>First trap, and a recurring question on every programming forum: take a 101-pixel-wide image down one level, then bring it back up.</p>
+
+<figure>
+<svg class="fig-wide" viewBox="0 0 680 250" role="img" aria-label="Downscaling 101 pixels gives 51, doubling back up gives 102, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
+  <g font-size="14">
+    <rect x="50"  y="60" width="202" height="70" rx="6" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <text x="151" y="100" text-anchor="middle" class="mono svg-ink notranslate" translate="no">101 px</text>
+    <path d="M262 95 L318 95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <text x="290" y="84" text-anchor="middle" class="svg-muted notranslate" font-size="11.5" translate="no">÷2</text>
+    <rect x="328" y="78" width="100" height="35" rx="5" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <text x="378" y="101" text-anchor="middle" class="mono svg-ink notranslate" translate="no">51 px</text>
+    <path d="M438 95 L494 95" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr3)"/>
+    <text x="466" y="84" text-anchor="middle" class="svg-muted notranslate" font-size="11.5" translate="no">×2</text>
+    <rect x="504" y="60" width="150" height="70" rx="6" fill="none" stroke="var(--bad)" stroke-width="2" stroke-dasharray="6 4"/>
+    <text x="579" y="100" text-anchor="middle" class="mono notranslate" fill="var(--bad)" translate="no">102 px ≠ 101</text>
+  </g>
+  <text x="340" y="180" text-anchor="middle" class="mono notranslate" fill="var(--bad)" font-size="13.5" translate="no">error: (-209) sizes of input arguments do not match</text>
+  <text x="340" y="208" text-anchor="middle" class="svg-ink2 notranslate" font-size="12.5" translate="no">…or worse: no error, and your difference image is silently misaligned.</text>
+  <defs><marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+</svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="Downscaling 101 pixels gives 51, doubling back up gives 102, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
+  <div class="flow">
+    <p class="box">101 px</p>
+    <p class="arrow">÷2</p>
+    <p class="box half">51 px</p>
+    <p class="arrow">×2</p>
+    <p class="box wrong">102 px ≠ 101</p>
+  </div>
+  <p class="errline">error: (-209) sizes of input arguments do not match</p>
+  <p class="note">…or worse: no error, and your difference image is silently misaligned.</p>
+</div>
+<figcaption>Fig. 2. Half of 101 is not a whole number. Whichever way the library rounds, the down-step forgets whether its parent was odd, so the up-step reconstructs the wrong size. Every tutorial demo uses 512×512 and works; your first real photo doesn’t.</figcaption>
+</figure>
+
+<p>Why does anyone go back <em>up</em>? Because the most useful pyramids are built from differences: subtract the blurry upsampled level from the sharper one above it and you isolate the detail that lives at that scale, the basis of seamless image blending, HDR fusion, and half of classical vision. And subtraction needs both images to be <em>the same size</em>. Let one odd number appear anywhere down the chain and the naive round trip breaks, loudly if you’re lucky, silently if you’re not. scikit-image shipped a broken version of this construction for years: its <a href="https://github.com/scikit-image/scikit-image/issues/7921"><code class="notranslate" translate="no">pyramid_laplacian</code></a> cannot rebuild the original image, which its maintainers confirmed and which was still unfixed in September 2026. Why did nobody notice? A core developer answered that in one sentence: &ldquo;somewhat bizarrely, we don&rsquo;t have a reconstruction test in the test suite.&rdquo;</p>
+
+<p>The root cause is structural: <code class="notranslate" translate="no">shrink()</code> and <code class="notranslate" translate="no">grow()</code> are two independent, stateless functions. <code class="notranslate" translate="no">shrink()</code> does not record the parent’s size, and <code class="notranslate" translate="no">grow()</code> does not ask for it. The information “101 was odd” falls into the gap between two function calls.</p>
+
+<h2>Trap 2: there are two ladders, not one</h2>
+
+<p>Remember the two operations, blur and shrink? Most libraries fuse them into one function and call the result “scale.” But they are <em>different axes</em>, and you can move along each independently:</p>
+
+<figure>
+<svg class="fig-wide" viewBox="0 0 680 420" role="img" aria-label="A two-by-two matrix. Horizontal axis: resolution shrinks. Vertical axis: blur grows. Top-left the original image; top-right the same content at half resolution, a mipmap level; bottom-left the same resolution with detail smoothed away, a scale stack; bottom-right both at once, a Gaussian pyramid level.">
+  <defs>
+    <!-- One tile of content, used at two scales. Halving resolution has to
+         redraw the same content smaller; drawing fewer tiles of the same size
+         would be a crop, which is a different operation entirely. -->
+    <g id="tile">
+      <rect width="16" height="16" fill="var(--fill-soft)"/>
+      <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+      <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+    </g>
+    <pattern id="tex" width="16" height="16" patternUnits="userSpaceOnUse">
+      <use href="#tile"/>
+    </pattern>
+    <pattern id="texHalf" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="scale(0.5)">
+      <use href="#tile"/>
+    </pattern>
+    <!-- The bottom row carries the same blur measured in base-image pixels, so
+         the half-resolution cell is drawn with half the sigma. A pyramid level
+         is band-limited, not soft. -->
+    <filter id="soft1"><feGaussianBlur stdDeviation="1.3"/></filter>
+    <filter id="soft2"><feGaussianBlur stdDeviation="2.6"/></filter>
+    <marker id="arr4" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker>
+  </defs>
+  <!-- axes -->
+  <path d="M110 60 L610 60" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr4)"/>
+  <text x="360" y="46" text-anchor="middle" class="svg-ink2 notranslate" font-size="13" font-weight="600" translate="no">resolution shrinks</text>
+  <path d="M84 86 L84 386" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arr4)"/>
+  <text x="64" y="236" text-anchor="middle" class="svg-ink2 notranslate" font-size="13" font-weight="600" transform="rotate(-90 64 236)" translate="no">blur grows</text>
+  <!-- top-left: the original -->
+  <g>
+    <rect x="120" y="86" width="160" height="112" fill="url(#tex)" stroke="var(--border)"/>
+    <text x="200" y="216" text-anchor="middle" class="svg-ink notranslate" font-size="13" font-weight="600" translate="no">original</text>
+  </g>
+  <!-- top-right: fewer samples, same content, no pre-filter -->
+  <g>
+    <rect x="420" y="86" width="80" height="56" fill="url(#texHalf)" stroke="var(--border)"/>
+    <text x="460" y="216" text-anchor="middle" class="svg-ink notranslate" font-size="13" font-weight="600" translate="no">shrink only</text>
+    <text x="460" y="234" text-anchor="middle" class="svg-muted notranslate" font-size="11.5" translate="no">GPU mipmaps · “stride” in deep nets</text>
+  </g>
+  <!-- bottom-left: every sample kept, detail removed -->
+  <g>
+    <rect x="120" y="266" width="160" height="112" fill="url(#tex)" filter="url(#soft2)"/>
+    <rect x="120" y="266" width="160" height="112" fill="none" stroke="var(--border)"/>
+    <text x="200" y="396" text-anchor="middle" class="svg-ink notranslate" font-size="13" font-weight="600" translate="no">blur only: “scale stack”</text>
+    <text x="200" y="414" text-anchor="middle" class="svg-muted notranslate" font-size="11.5" translate="no">blob detection · registration (often the best choice!)</text>
+  </g>
+  <!-- bottom-right: pre-filter, then keep every second sample -->
+  <g>
+    <rect x="420" y="294" width="80" height="56" fill="url(#texHalf)" filter="url(#soft1)"/>
+    <rect x="420" y="294" width="80" height="56" fill="none" stroke="var(--border)"/>
+    <text x="460" y="396" text-anchor="middle" class="svg-ink notranslate" font-size="13" font-weight="600" translate="no">both: Gaussian pyramid</text>
+    <text x="460" y="414" text-anchor="middle" class="svg-muted notranslate" font-size="11.5" translate="no">the “classic”, but only one cell of four</text>
+  </g>
+</svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="A two-by-two matrix. Horizontal axis: resolution shrinks. Vertical axis: blur grows. Top-left the original image; top-right the same content at half resolution, a mipmap level; bottom-left the same resolution with detail smoothed away, a scale stack; bottom-right both at once, a Gaussian pyramid level.">
+  <p class="ax">columns → resolution shrinks</p>
+  <p class="ax">rows ↓ blur grows</p>
+  <div class="grid4">
+    <div>
+      <svg viewBox="0 0 168 120" aria-hidden="true">
+        <defs>
+          <pattern id="t1n" width="16" height="16" patternUnits="userSpaceOnUse">
+          <rect width="16" height="16" fill="var(--fill-soft)"/>
+          <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+          <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+          </pattern>
+        </defs>
+        <rect x="4" y="4" width="160" height="112" fill="url(#t1n)"/>
+        <rect x="4" y="4" width="160" height="112" fill="none" stroke="var(--border)"/>
+      </svg>
+      <p class="cap">original</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 168 120" aria-hidden="true">
+        <defs>
+          <pattern id="t2n" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="scale(0.5)">
+          <rect width="16" height="16" fill="var(--fill-soft)"/>
+          <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+          <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+          </pattern>
+        </defs>
+        <rect x="4" y="4" width="80" height="56" fill="url(#t2n)"/>
+        <rect x="4" y="4" width="80" height="56" fill="none" stroke="var(--border)"/>
+      </svg>
+      <p class="cap">shrink only</p>
+      <p class="sub">GPU mipmaps · “stride” in deep nets</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 168 120" aria-hidden="true">
+        <defs>
+          <pattern id="t3n" width="16" height="16" patternUnits="userSpaceOnUse">
+          <rect width="16" height="16" fill="var(--fill-soft)"/>
+          <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+          <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+          </pattern>
+          <filter id="t3n-b"><feGaussianBlur stdDeviation="2.6"/></filter>
+        </defs>
+        <rect x="4" y="4" width="160" height="112" fill="url(#t3n)" filter="url(#t3n-b)"/>
+        <rect x="4" y="4" width="160" height="112" fill="none" stroke="var(--border)"/>
+      </svg>
+      <p class="cap">blur only: “scale stack”</p>
+      <p class="sub">blob detection · registration (often the best choice!)</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 168 120" aria-hidden="true">
+        <defs>
+          <pattern id="t4n" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="scale(0.5)">
+          <rect width="16" height="16" fill="var(--fill-soft)"/>
+          <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+          <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+          </pattern>
+          <filter id="t4n-b"><feGaussianBlur stdDeviation="1.3"/></filter>
+        </defs>
+        <rect x="4" y="4" width="80" height="56" fill="url(#t4n)" filter="url(#t4n-b)"/>
+        <rect x="4" y="4" width="80" height="56" fill="none" stroke="var(--border)"/>
+      </svg>
+      <p class="cap">both: Gaussian pyramid</p>
+      <p class="sub">the “classic”, but only one cell of four</p>
+    </div>
+  </div>
+</div>
+<figcaption>Fig. 3. Blur and shrink are orthogonal. All four combinations exist and all four are used in serious systems. A library with a single <code class="notranslate" translate="no">buildPyramid()</code> can express exactly one of them, and gives you no word for the other three.</figcaption>
+</figure>
+
+<p>This distinction has a proper name. The blur axis is called <strong>scale-space</strong>: how much fine detail has been smoothed away, measured by the blur radius σ (sigma) <em>in pixels of the original image</em>. The shrink axis is just <strong>resolution</strong>: how many samples you kept. A GPU mipmap shrinks without caring about σ. A blob detector sweeps σ without shrinking at all. The classic Gaussian pyramid does both in lock-step, which is precisely why generations of developers learned they were one thing.</p>
+
+<p>SIFT, the most famous algorithm in classical vision, finds keypoints you can recognize again in another photo. It needs <em>both axes at once</em>, as a grid: within each “octave” it keeps resolution fixed and steps the blur; between octaves it halves the resolution. The bookkeeping looks like this:</p>
+
+<figure>
+<svg class="fig-wide" viewBox="0 0 680 330" role="img" aria-label="The SIFT scale space as a grid: three octaves as rows with shrinking image width, three blur layers as columns; each cell labeled with its sigma value, growing along both axes.">
+  <defs><marker id="arr6" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
+  <!-- Axes as drawn arrows rather than glyphs in the labels: a rotated
+       label turns its arrow with it, so the vertical one would point right. -->
+  <text x="370" y="34" text-anchor="middle" class="svg-ink2 notranslate" font-size="13" font-weight="600" translate="no">blur steps within an octave</text>
+  <path d="M95 44 L645 44" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr6)"/>
+  <text x="40" y="190" text-anchor="middle" class="svg-ink2 notranslate" font-size="13" font-weight="600" transform="rotate(-90 40 190)" translate="no">octaves: resolution halves</text>
+  <path d="M58 56 L58 268" stroke="var(--muted)" stroke-width="1.5" fill="none" marker-end="url(#arr6)"/>
+  <!-- octave 0: full width cells -->
+  <g>
+    <text x="80" y="86" class="svg-muted notranslate" font-size="12" text-anchor="end" translate="no">o0</text>
+    <rect x="95"  y="56" width="170" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="285" y="56" width="170" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="475" y="56" width="170" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <g class="mono svg-ink" font-size="13" text-anchor="middle">
+      <text x="180" y="87" class="notranslate" translate="no">σ = 1.6</text>
+      <text x="370" y="87" class="notranslate" translate="no">σ = 2.0</text>
+      <text x="560" y="87" class="notranslate" translate="no">σ = 2.5</text>
+    </g>
+  </g>
+  <!-- octave 1 -->
+  <g>
+    <text x="80" y="166" class="svg-muted notranslate" font-size="12" text-anchor="end" translate="no">o1</text>
+    <rect x="95"  y="136" width="120" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="285" y="136" width="120" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="475" y="136" width="120" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <g class="mono svg-ink" font-size="13" text-anchor="middle">
+      <text x="155" y="167" class="notranslate" translate="no">σ = 3.2</text>
+      <text x="345" y="167" class="notranslate" translate="no">σ = 4.0</text>
+      <text x="535" y="167" class="notranslate" translate="no">σ = 5.1</text>
+    </g>
+  </g>
+  <!-- octave 2 -->
+  <g>
+    <text x="80" y="246" class="svg-muted notranslate" font-size="12" text-anchor="end" translate="no">o2</text>
+    <rect x="95"  y="216" width="80" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="285" y="216" width="80" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <rect x="475" y="216" width="80" height="52" rx="4" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <g class="mono svg-ink" font-size="13" text-anchor="middle">
+      <text x="135" y="247" class="notranslate" translate="no">σ = 6.4</text>
+      <text x="325" y="247" class="notranslate" translate="no">σ = 8.1</text>
+      <text x="515" y="247" class="notranslate" translate="no">σ = 10.2</text>
+    </g>
+  </g>
+  <text x="370" y="302" text-anchor="middle" class="svg-muted notranslate" font-size="12.5" translate="no">a 2-D grid: (octave, layer), with σ growing smoothly across the whole thing: σ(o, l) = 1.6 · 2^(o + l/3)</text>
+</svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="The SIFT scale space as a grid: three octaves as rows with shrinking image width, three blur layers as columns; each cell labeled with its sigma value, growing along both axes.">
+  <p class="ax">columns → blur steps within an octave</p>
+  <p class="ax">rows ↓ octaves: resolution halves</p>
+  <div class="sift">
+    <span class="oct">o0</span>
+    <span class="cell">σ = 1.6</span><span class="cell">σ = 2.0</span><span class="cell">σ = 2.5</span>
+    <span class="oct">o1</span>
+    <span class="cell oc1">σ = 3.2</span><span class="cell oc1">σ = 4.0</span><span class="cell oc1">σ = 5.1</span>
+    <span class="oct">o2</span>
+    <span class="cell oc2">σ = 6.4</span><span class="cell oc2">σ = 8.1</span><span class="cell oc2">σ = 10.2</span>
+  </div>
+  <p class="note">a 2-D grid: (octave, layer), with σ growing smoothly across the whole thing: σ(o, l) = 1.6 · 2^(o + l/3)</p>
+</div>
+<figcaption>Fig. 4. SIFT’s scale space is a <em>grid</em>, not a chain. Same resolution across each row, same blur ratio down each column. Most libraries flatten this into one array and make you compute <code class="notranslate" translate="no">octave·(S+3)+layer</code> by hand, an off-by-one-octave bug generator with decades of forum history.</figcaption>
+</figure>
+
+<p>And how does OpenCV report which cell of that grid a keypoint came from? It packs the octave, the layer, <em>and</em> a sub-scale fraction into a single 32-bit integer. Users see <code class="notranslate" translate="no">keypoint.octave == 10420482</code>, file a bug, and are pointed to an unexported internal function whose decode ritual involves masking the low byte and manually sign-extending it, because octave −1 is valid. <a href="https://github.com/opencv/opencv/issues/4554">The report</a> has been open since 2015; the packing was reclassified from bug to feature and kept for backward compatibility. One commenter asked the question this whole series is about: “How should a typical user know that?”</p>
+
+<h2>Trap 3: the way back down is off by half a pixel</h2>
+
+<p>You found your object at level 3. Now: <em>where is it in the original image?</em> Everyone writes the same line: <code class="notranslate" translate="no">x_full = x_level * 8</code>. And everyone ships a subtle lie, because that formula assumes a coarse pixel sits exactly where a full-resolution pixel sits, and depending on how the library shrinks, it usually doesn’t:</p>
+
+<figure>
+<svg class="fig-wide" viewBox="0 0 680 530" role="img" aria-label="A four-level image pyramid drawn with pixel grids. The object is detected on level 3, the smallest. Mapping that detection back to level 0 by multiplying by eight lands three and a half pixels short of the object; adding the half-pixel term that the averaging introduced lands on it.">
+  <defs>
+    <pattern id="px2" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
+    </pattern>
+    <marker id="mapR" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--bad)"/></marker>
+    <marker id="mapG" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--good)"/></marker>
+  </defs>
+  <g>
+    <rect x="60" y="10" width="40" height="30" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="85" cy="25" r="3.5" fill="var(--accent)" opacity="0.8"/>
+    <rect x="60" y="10" width="40" height="30" fill="url(#px2)" stroke="var(--border)"/>
+  </g>
+  <g>
+    <rect x="60" y="50" width="80" height="60" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="110" cy="80" r="6.5" fill="var(--accent)" opacity="0.8"/>
+    <rect x="60" y="50" width="80" height="60" fill="url(#px2)" stroke="var(--border)"/>
+  </g>
+  <g>
+    <rect x="60" y="120" width="160" height="120" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="160" cy="180" r="13" fill="var(--accent)" opacity="0.8"/>
+    <rect x="60" y="120" width="160" height="120" fill="url(#px2)" stroke="var(--border)"/>
+  </g>
+  <g>
+    <rect x="60" y="250" width="320" height="240" fill="var(--fill-soft)" stroke="var(--border)"/>
+    <circle cx="260" cy="370" r="26" fill="var(--accent)" opacity="0.8"/>
+    <rect x="60" y="250" width="320" height="240" fill="url(#px2)" stroke="var(--border)"/>
+  </g>
+  <!-- the detector, at the level where the object fits it -->
+  <rect x="72" y="12" width="26" height="26" fill="none" stroke="var(--good)" stroke-width="2"/>
+  <text x="112" y="21" class="svg-ink notranslate" font-size="12.5" font-weight="600" translate="no">level 3 · 4×3 px: detected at pixel (2, 1) ✓</text>
+  <text x="112" y="37" class="svg-muted notranslate" font-size="12" translate="no">now, where is that in the full-size image?</text>
+  <text x="152" y="84"  class="svg-muted notranslate" font-size="12" translate="no">level 2 · 8×6 px</text>
+  <text x="232" y="184" class="svg-muted notranslate" font-size="12" translate="no">level 1 · 16×12 px</text>
+  <text x="392" y="268" class="svg-muted notranslate" font-size="12" translate="no">level 0 · 32×24 px</text>
+  <text x="392" y="286" class="svg-muted notranslate" font-size="11.5" translate="no">every step halves exactly,</text>
+  <text x="392" y="302" class="svg-muted notranslate" font-size="11.5" translate="no">nothing here was rounded</text>
+
+  <!-- back down the pyramid, twice: the usual multiplication and the honest map -->
+  <path d="M68 20 L30 20 L30 335 L209 335" fill="none" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mapR)"/>
+  <path d="M68 32 L14 32 L14 370 L228 370" fill="none" stroke="var(--good)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mapG)"/>
+
+  <!-- the same naive doubling, one level at a time: the miss is 0.5 px in
+       level 2's own pixels, 1.5 in level 1's, 3.5 by the bottom -->
+  <path d="M101 71 L109 79 M109 71 L101 79" stroke="var(--bad)" stroke-width="2"/>
+  <text x="152" y="100" class="mono svg-muted notranslate" font-size="11.5" translate="no">x · 2 → 0.5 px off</text>
+  <path d="M140 160 L150 170 M150 160 L140 170" stroke="var(--bad)" stroke-width="2"/>
+  <path d="M145 165 L160 180" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="232" y="200" class="mono svg-muted notranslate" font-size="11.5" translate="no">x · 4 → 1.5 px off</text>
+
+  <!-- where each map lands -->
+  <path d="M218 328 L232 342 M232 328 L218 342" stroke="var(--bad)" stroke-width="2.5"/>
+  <path d="M225 335 L260 370" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="292" y="330" class="mono svg-ink notranslate" font-size="12.5" translate="no">3.5 px off</text>
+  <circle cx="260" cy="370" r="3.5" fill="var(--good)"/>
+
+  <text x="392" y="335" class="svg-ink notranslate" font-size="12.5" translate="no">x · 8 lands here ✗</text>
+  <text x="392" y="370" class="svg-ink notranslate" font-size="12.5" translate="no">x · 8 + 3.5 lands on it ✓</text>
+  <text x="392" y="392" class="svg-muted notranslate" font-size="11.5" translate="no">the half pixel comes from how the</text>
+  <text x="392" y="408" class="svg-muted notranslate" font-size="11.5" translate="no">level was built, not from rounding</text>
+</svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="A four-level image pyramid drawn with pixel grids. The object is detected on level 3, the smallest. Mapping that detection back to level 0 by multiplying by eight lands three and a half pixels short of the object; adding the half-pixel term that the averaging introduced lands on it.">
+  <svg class="plot tall" viewBox="0 0 340 496">
+    <defs>
+      <pattern id="px2n" width="10" height="10" patternUnits="userSpaceOnUse">
+        <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
+      </pattern>
+      <marker id="mapRn" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--bad)"/></marker>
+    </defs>
+    <g>
+      <rect x="16" y="6" width="40" height="30" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="41" cy="21" r="3.5" fill="var(--accent)" opacity="0.8"/>
+      <rect x="16" y="6" width="40" height="30" fill="url(#px2n)" stroke="var(--border)"/>
+    </g>
+    <g>
+      <rect x="16" y="46" width="80" height="60" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="66" cy="76" r="6.5" fill="var(--accent)" opacity="0.8"/>
+      <rect x="16" y="46" width="80" height="60" fill="url(#px2n)" stroke="var(--border)"/>
+    </g>
+    <g>
+      <rect x="16" y="116" width="160" height="120" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="116" cy="176" r="13" fill="var(--accent)" opacity="0.8"/>
+      <rect x="16" y="116" width="160" height="120" fill="url(#px2n)" stroke="var(--border)"/>
+    </g>
+    <g>
+      <rect x="16" y="246" width="320" height="240" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="216" cy="366" r="26" fill="var(--accent)" opacity="0.8"/>
+      <rect x="16" y="246" width="320" height="240" fill="url(#px2n)" stroke="var(--border)"/>
+    </g>
+    <!-- the detection, on the level where the object fits the detector -->
+    <rect x="28" y="8" width="26" height="26" fill="none" stroke="var(--good)" stroke-width="2"/>
+    <!-- the naive map back down: out to the left, down, and in again. The
+         drawing stacks the levels, so one lane is enough for the one path
+         worth drawing; the honest map lands on the object and is the dot. -->
+    <path d="M28 21 L6 21 L6 331 L172 331" fill="none" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mapRn)"/>
+    <!-- the same doubling one level at a time: 0.5 px out on level 2,
+         1.5 on level 1, 3.5 by the bottom -->
+    <path d="M57 67 L65 75 M65 67 L57 75" stroke="var(--bad)" stroke-width="2"/>
+    <path d="M96 156 L106 166 M106 156 L96 166" stroke="var(--bad)" stroke-width="2"/>
+    <path d="M101 161 L116 176" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
+    <path d="M174 324 L188 338 M188 324 L174 338" stroke="var(--bad)" stroke-width="2.5"/>
+    <path d="M181 331 L216 366" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
+    <circle cx="216" cy="366" r="3.5" fill="var(--good)"/>
+    <text x="192" y="318" class="mono svg-ink notranslate" font-size="12" translate="no">3.5 px off</text>
+  </svg>
+  <ul class="key">
+    <li><b>level 3 · 4×3 px:</b> detected at pixel (2, 1) ✓. Now, where is that in the full-size image?</li>
+    <li><b>level 2 · 8×6 px:</b> x·2 lands 0.5 px off</li>
+    <li><b>level 1 · 16×12 px:</b> x·4 lands 1.5 px off</li>
+    <li><b>level 0 · 32×24 px:</b> x·8 lands 3.5 px off ✗, x·8 + 3.5 lands on it ✓</li>
+  </ul>
+  <p class="note">Every step halves exactly, nothing here was rounded. The half pixel comes from how the level was built, not from rounding.</p>
+</div>
+<figcaption>Fig. 5. Found on level 3, reported in full-resolution coordinates. Multiplying by 8 assumes a coarse pixel sits exactly on a full-resolution one (Fig. 6); if the level averaged 2×2 blocks it sits half a pixel further in, and the drift doubles with every step down.</figcaption>
+</figure>
+
+
+<p>Whether that multiplication is honest depends on how the level was made. A coarse pixel sits at the middle of the samples it came from, so the question is whether those samples <em>have</em> a middle. An odd, symmetric footprint does, and the coarse pixel inherits that sample&rsquo;s position, landing exactly on the fine grid. An even one does not, and the pixel lands on the boundary between two, half a pixel off. A 5-tap Gaussian is odd, which is why a proper Gaussian pyramid stays aligned; averaging 2×2 blocks is even, which is why it drifts, half a pixel at every step. And note that averaging a block <em>is</em> a kernel, an even-width one, so the developers most exposed to this are the ones who believe they are not filtering at all.</p>
+
+<figure>
+<svg class="fig-wide" viewBox="0 0 680 362" role="img" aria-label="Two ways to produce one coarse sample from a row of fine pixels. Above, a five-tap Gaussian: the taps are symmetric about a middle tap, so the coarse sample sits exactly on fine pixel 4. Below, an average of two samples: there is no middle tap, so the coarse sample sits between fine pixels 4 and 5, half a pixel off the grid.">
+  <text x="60" y="26" class="svg-ink notranslate" font-size="12.5" font-weight="600" translate="no">A · 5-tap Gaussian, then keep every second sample</text>
+  <text x="60" y="44" class="svg-muted notranslate" font-size="11.5" translate="no">odd number of taps, so one of them is the middle one</text>
+    <rect x="170" y="113" width="30" height="7" fill="var(--accent)" opacity="0.75"/>
+    <rect x="220" y="93" width="30" height="27" fill="var(--accent)" opacity="0.75"/>
+    <rect x="270" y="80" width="30" height="40" fill="var(--accent)" opacity="0.75"/>
+    <rect x="320" y="93" width="30" height="27" fill="var(--accent)" opacity="0.75"/>
+    <rect x="370" y="113" width="30" height="7" fill="var(--accent)" opacity="0.75"/>
+    <rect x="60" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="110" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="160" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="210" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="260" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="310" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="360" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="410" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="460" y="120" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <circle cx="85" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="135" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="185" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="235" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="285" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="335" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="385" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="435" cy="135" r="2" fill="var(--muted)"/>
+    <circle cx="485" cy="135" r="2" fill="var(--muted)"/>
+    <path d="M279 162 L291 162 L285 152 z" fill="var(--accent)"/>
+    <text x="285" y="178" text-anchor="middle" class="mono svg-ink notranslate" font-size="11.5" translate="no">sits on fine 4</text>
+  <text x="530" y="139" class="svg-ink2 notranslate" font-size="12" translate="no">x · 2 exact ✓</text>
+
+  <text x="60" y="222" class="svg-ink notranslate" font-size="12.5" font-weight="600" translate="no">B · average two samples, then keep every second</text>
+  <text x="60" y="240" class="svg-muted notranslate" font-size="11.5" translate="no">even number of taps, so there is no middle one</text>
+    <rect x="270" y="250" width="30" height="40" fill="var(--accent-2)" opacity="0.75"/>
+    <rect x="320" y="250" width="30" height="40" fill="var(--accent-2)" opacity="0.75"/>
+    <rect x="60" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="110" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="160" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="210" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="260" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="310" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="360" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="410" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <rect x="460" y="290" width="50" height="30" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+    <circle cx="85" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="135" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="185" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="235" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="285" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="335" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="385" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="435" cy="305" r="2" fill="var(--muted)"/>
+    <circle cx="485" cy="305" r="2" fill="var(--muted)"/>
+    <path d="M304 332 L316 332 L310 322 z" fill="var(--accent-2)"/>
+    <text x="310" y="348" text-anchor="middle" class="mono svg-ink notranslate" font-size="11.5" translate="no">sits between 4 and 5</text>
+  <text x="530" y="309" class="svg-ink2 notranslate" font-size="12" translate="no">x · 2 + 0.5 ✗</text>
+</svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="Two ways to produce one coarse sample from a row of fine pixels. Above, a five-tap Gaussian: the taps are symmetric about a middle tap, so the coarse sample sits exactly on fine pixel 4. Below, an average of two samples: there is no middle tap, so the coarse sample sits between fine pixels 4 and 5, half a pixel off the grid.">
+  <div class="panel">
+    <p class="panel-title">A · 5-tap Gaussian, then keep every second sample</p>
+    <p class="panel-sub">odd number of taps, so one of them is the middle one</p>
+    <svg class="plot" viewBox="0 0 324 112" aria-hidden="true">
+      <rect x="77" y="39" width="28" height="7" fill="var(--accent)" opacity="0.75"/>
+      <rect x="111" y="19" width="28" height="27" fill="var(--accent)" opacity="0.75"/>
+      <rect x="145" y="6" width="28" height="40" fill="var(--accent)" opacity="0.75"/>
+      <rect x="179" y="19" width="28" height="27" fill="var(--accent)" opacity="0.75"/>
+      <rect x="213" y="39" width="28" height="7" fill="var(--accent)" opacity="0.75"/>
+      <rect x="6" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="40" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="74" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="108" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="142" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="176" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="210" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="244" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="278" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <circle cx="23" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="57" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="91" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="125" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="159" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="193" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="227" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="261" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="295" cy="57" r="2" fill="var(--muted)"/>
+      <path d="M153 88 L165 88 L159 78 z" fill="var(--accent)"/>
+      <text x="159" y="104" text-anchor="middle" class="mono svg-ink notranslate" font-size="11.5" translate="no">sits on fine 4</text>
+    </svg>
+    <p class="verdict ok">x · 2 exact ✓</p>
+  </div>
+  <div class="panel">
+    <p class="panel-title">B · average two samples, then keep every second</p>
+    <p class="panel-sub">even number of taps, so there is no middle one</p>
+    <svg class="plot" viewBox="0 0 324 112" aria-hidden="true">
+      <rect x="145" y="6" width="28" height="40" fill="var(--accent-2)" opacity="0.75"/>
+      <rect x="179" y="6" width="28" height="40" fill="var(--accent-2)" opacity="0.75"/>
+      <rect x="6" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="40" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="74" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="108" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="142" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="176" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="210" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="244" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="278" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <circle cx="23" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="57" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="91" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="125" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="159" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="193" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="227" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="261" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="295" cy="57" r="2" fill="var(--muted)"/>
+      <path d="M170 88 L182 88 L176 78 z" fill="var(--accent-2)"/>
+      <text x="176" y="104" text-anchor="middle" class="mono svg-ink notranslate" font-size="11.5" translate="no">sits between 4 and 5</text>
+    </svg>
+    <p class="verdict off">x · 2 + 0.5 ✗</p>
+  </div>
+</div>
+<figcaption>Fig. 6. Which samples a level is built from decides where its pixels sit. Five taps have a middle tap and the coarse sample inherits its position, so the grids stay aligned and <code class="notranslate" translate="no">x·2</code> is exact. Two taps have no middle, so the sample lands on the edge between them. Odd footprints keep a pyramid on the grid; even ones shift it half a pixel, once per level.</figcaption>
+</figure>
+
+<p>If half a pixel sounds like a rounding error, consider that whole framework ecosystems fought a multi-year war over exactly this: the infamous <code class="notranslate" translate="no">align_corners</code> flag, whose default was <a href="https://jricheimer.github.io/tensorflow/2019/02/11/resize-confusion/">wrong in TensorFlow 1</a> for years. The flag still means different things in different frameworks: with <code class="notranslate" translate="no">align_corners=False</code>, coarse pixel <em>k</em> sits at <em>2k</em> in TensorFlow 1 and at <em>2k</em>&nbsp;+&nbsp;0.5 in PyTorch. Same name, same value, half a pixel apart. Sub-pixel keypoints, optical flow, stereo: the entire point of these algorithms is precision <em>below</em> one pixel. A convention mismatch eats the whole error budget before your algorithm even starts.</p>
+
+<p class="pull">Three traps, one pattern: the pyramid’s geometry (parent sizes, blur levels, grid offsets) lives in nobody’s data structure. It lives in comments, in conventions, and in rules chanted around a campfire on a foggy night, whose songs have faded by morning.</p>
+
+<h2>Give the geometry a home</h2>
+
+<p>None of these are logic bugs. The blur was correct, the subsampling was correct, the multiplication by 8 was multiplication by 8. What failed, every time, was <em>unrecorded meaning</em>: an odd parent size the down-step forgot, a σ nobody wrote down, a grid offset that existed only in the implementer’s head. Type bugs, the kind a type system can refuse to compile.</p>
+
+<p>Here is how <a href="https://crates.io/crates/fovea">fovea</a> answers all three, as of v0.5.0 (September 2026). The principle: <strong>a level&rsquo;s geometry is a value it carries, not a convention you are expected to remember.</strong></p>
+
+<p><strong>Trap 1, the staircase that would not come back up.</strong> A loose 51-pixel-wide image really is ambiguous, so the free up-step asks for its target and there is no overload that guesses. Inside a pyramid the parent size was recorded on the way down, so there is nothing left to ask for. Both calls exist, and the difference between them is the entire point:</p>
+
+<pre class="notranslate" translate="no"><code><span class="kw">let</span> base: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = load(&quot;photo.png&quot;)?; <span class="cmt">// 101 × 68, an ordinary odd size</span>
+<span class="kw">let</span> pyr = <span class="ty">Gaussian</span>.build(&amp;base, 3);        <span class="cmt">// 101×68, 51×34, 26×17</span>
+
+<span class="cmt">// An image on its own has lost the number 101, so the free function has</span>
+<span class="cmt">// to be told, and refuses to guess:</span>
+<span class="kw">let</span> back_up = pyr_up(&amp;loose_level);
+<span class="err">// error[E0061]: this function takes 2 arguments but 1 argument was supplied</span>
+<span class="err">//   = note: a 51-wide image could have come from 101 or from 102</span>
+
+<span class="cmt">// Inside the pyramid the parent is right there, so nothing is asked:</span>
+<span class="kw">let</span> back_up: <span class="ty">Image</span>&lt;<span class="ty">Rgb8</span>&gt; = pyr.expand(1).expect(&quot;level 1 has a parent&quot;);
+<span class="cmt">// 101 × 68, exactly. The Option asks &quot;is there a level above this one?&quot;,</span>
+<span class="cmt">// which is the only question left once the container was checked once.</span></code></pre>
+
+<p><strong>Trap 2, the two ladders.</strong> Blur and resolution are separate capabilities, <code class="notranslate" translate="no">Decimated</code> and <code class="notranslate" translate="no">ScaleLevel</code>, and a level can hold one without the other. A Gaussian pyramid knows exactly where its samples sit, because it worked that out on the way down. It knows nothing about blur, because blur depends on a fact nobody gave it. So one ladder answers and the other is a compile error, and that asymmetry is the honest one:</p>
+
+<pre class="notranslate" translate="no"><code><span class="kw">let</span> pyr = <span class="ty">Gaussian</span>.build(&amp;base, 3);
+
+<span class="cmt">// The resolution ladder: derived on the way down, kept by the level.</span>
+pyr.level(1).pixel_distance(); <span class="cmt">// 2.0, in base-image pixels</span>
+pyr.level(1).origin_offset();  <span class="cmt">// (0, 0): pyr_down keeps even samples</span>
+
+<span class="cmt">// The blur ladder is not derivable, so asking is a compile error:</span>
+<span class="kw">let</span> sigma = pyr.level(1).sigma();
+<span class="err">// error[E0599]: no method named `sigma` found for reference `&amp;PlacedImage&lt;Rgb8&gt;`</span>
+<span class="err">//   = note: `ScaleLevel` is implemented for `ScaledImage`, not `PlacedImage`</span>
+
+<span class="cmt">// It needs one fact only you have: how sharp was the input? Name it, and</span>
+<span class="cmt">// every level states its own blur.</span>
+<span class="kw">let</span> pyr = <span class="ty">Gaussian</span>.assuming_input_sigma(sigma!(0.5)).build(&amp;base, 3);
+pyr.level(1).sigma(); <span class="cmt">// 1.118</span>
+
+<span class="cmt">// SIFT needs both ladders at once, so its grid is its own type, indexed</span>
+<span class="cmt">// (octave, layer). No octave·(S+3)+layer by hand, no three values in one int.</span></code></pre>
+
+<p>That <code class="notranslate" translate="no">1.118</code> deserves its own paragraph. One <code class="notranslate" translate="no">pyr_down</code> applies a blur of σ = 1 measured in its parent&rsquo;s pixels, so level 1 has σ = 1 <em>only if the input was perfectly sharp</em>. No photograph is; Lowe&rsquo;s SIFT assumes σ = 0.5 for its input for exactly this reason. Under that assumption level 1 is √(0.5² + 1²) = 1.118, because variances add and σ does not. The gap widens as you climb: by level 3 the tempting extrapolation from the sampling distance is 13% short of the truth, silently. Writing σ = 1.0 for level 1 assumes a perfectly sharp input. That is why the method is called <code class="notranslate" translate="no">assuming_input_sigma</code>: you cannot get a σ out of a pyramid without first saying what you assumed going in.</p>
+
+<p><strong>Trap 3, the way back down.</strong> The fix is to remove the multiplication altogether. A detector that runs on a level reports in the base frame:</p>
+
+<pre class="notranslate" translate="no"><code><span class="cmt">// Detection on a level already reports base-frame positions: nothing to multiply.</span>
+<span class="kw">let</span> level = pyr.level(1);
+<span class="kw">let</span> corners = fast_in_level(level, params, &amp;<span class="ty">Skip</span>);
+<span class="cmt">// found on the 51×34 level, reported in 101×68 base coordinates</span>
+
+<span class="cmt">// A point you lift yourself goes through one named method, in both directions:</span>
+<span class="kw">let</span> peak    = <span class="ty">CoordinateF64</span>::new(5.0, 3.0); <span class="cmt">// a sub-pixel peak, in level coordinates</span>
+<span class="kw">let</span> in_base = level.to_base(peak);          <span class="cmt">// origin_offset + pixel_distance·peak</span>
+                                            <span class="cmt">// gives (10.0, 6.0)</span>
+<span class="kw">let</span> back    = level.to_local(in_base);      <span class="cmt">// (5.0, 3.0) again: the exact inverse</span>
+<span class="cmt">// The half-pixel term is part of the contract of how this level was built,</span>
+<span class="cmt">// not something you had to be at the campfire for.</span></code></pre>
+
+<p>And because this is the same library from part 2: building any of it from a gamma-encoded image is still a compile error. A pyramid is blurs all the way down, so every level would repeat the 128-vs-188 mistake, so the type system demands linear light at the front door.</p>
+
+<h2>Why this matters more every year</h2>
+
+<p>Across three articles we met three bugs: swapped channels, gamma-blind averaging, and pyramid geometry lost between function calls. None of them was a wrong algorithm. All of them were <em>wrong assumptions flowing silently between correct functions</em>, and all of them are reproduced by the thousand in forums, tutorials, and now in the training data of every coding agent that writes vision code. The agents are fast, tireless, and trained on twenty years of examples that average sRGB bytes and multiply by <code class="notranslate" translate="no">2^octave</code>.</p>
+
+<p>Vision systems are leaving the demo notebook for places where a wrong image is a lost measurement or a missed defect. We cannot review our way out at that scale, but we can make the mistakes unrepresentable. Write the meaning into the types: what order the channels are, whether the values are light, what geometry a level carries. Then every one of these classics (human-written or machine-written) stops being a debugging session and becomes a red squiggle.</p>
+
+<p>The compiler was always willing to check our assumptions. We just had to write them down.</p>
+
+<div class="footer-nav">
+  <strong class="notranslate" translate="no">Type-Safe Computer Vision</strong>, a series about bugs the compiler could have caught:
+  <a href="01-rgb-bgr-the-blue-face-bug.html">Part 1: <span class="notranslate" translate="no">The Blue Face Bug</span>, RGB vs BGR</a> ·
+  <a href="02-gamma-blind-interpolation.html">Part 2: <span class="notranslate" translate="no">128 Is Not the Middle</span>, gamma and interpolation</a> ·
+  Part 3: <span class="notranslate" translate="no">Climbing the Pyramid</span>
+  <br><br>
+  <a href="/">Series index</a> · <a href="/feed.xml">Atom feed</a> · <a href="https://github.com/karhunen-loeve/fovea">fovea on GitHub</a> · <a href="https://mastodon.social/@karhunen_loeve"><span class="notranslate" translate="no">@karhunen_loeve@mastodon.social</span></a>
+</div>
+
+</article>
+<script>
+/* ---------------------------------------------------------------------------
+   A few cells of the grid, tinted.
+
+   Three things keep it from looking machine-made. The tinting is multi-scale,
+   like the grid it sits on: mostly 16 px cells, some 32, rarely a 64 px block,
+   each fainter as it gets larger. Every cell's alpha is drawn from a range
+   rather than fixed. And the probability of a cell being tinted is modulated
+   by a slow lumpy field, so the cells clump and leave bare patches instead of
+   scattering evenly - an even scatter is what reads as wallpaper.
+
+   The seed is fixed and the lattice is anchored to the viewport, so which
+   cells exist never changes and the grid does not move when you scroll. The
+   fill is inset by a pixel, so the grid lines underneath survive.
+
+   Nothing is tinted where you read. The text boxes are measured in the DOM and
+   every cell's alpha is scaled by its clearance from the nearest one, with a
+   100 px shoulder. Since the layer is fixed and the text is not, that clearance
+   changes as you scroll: a cell fades out as a paragraph arrives and fades
+   back in once it has passed. The texture reacts to what is on top of it.
+--------------------------------------------------------------------------- */
+(function () {
+  var cv = document.getElementById('cells');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // A coloured tint on a dark ground has no middle setting: too faint and it
+  // is merely "a bit lighter", too strong and it is a flat block. So the
+  // cells are sparse and properly coloured rather than many and muddy.
+  //
+  // k is a per-colour gain. Amber is a warm hue on a cold ground, so at the
+  // alpha the others use it turns olive-brown; it is the rarest of the three
+  // and gets to be stronger when it does appear.
+  var COLS = [
+    { c: '87,255,207',  w: .58, k: 1.00 },   // mint
+    { c: '192,168,255', w: .30, k: 1.15 },   // violet
+    { c: '255,193,102', w: .12, k: 1.90 }    // amber
+  ];
+  var LEVELS = [
+    { cell: 16, p: .0145, lo: .055, hi: .150 },
+    { cell: 32, p: .0040, lo: .035, hi: .085 },
+    { cell: 64, p: .0012, lo: .020, hi: .045 }
+  ];
+
+  function lump(x, y) {
+    return 0.5 + 0.5 * (
+      0.55 * Math.sin(x / 260 + 1.3) * Math.cos(y / 310 - 0.7) +
+      0.30 * Math.sin(x /  95 - 2.1) * Math.cos(y / 130 + 1.9) +
+      0.15 * Math.sin((x + y) / 170)
+    );
+  }
+
+  // Every block whose text sits straight on the background. Cards are absent
+  // on purpose: their panel is opaque, so it hides the tint behind it anyway.
+  var READ = ['.mast', 'article > *', 'article li'];
+  var FEATHER = 100;  // px of soft shoulder around each block. It doubles as
+                      // the length over which a cell fades as you scroll past
+                      // it, which is why it is this wide: at 44 px a cell went
+                      // from nothing to full inside a single wheel step, and
+                      // that reads as a blink rather than a fade. Widening it
+                      // costs about 8 per cent of the cells.
+  var QUIET = 0;      // what survives under the text; raise it to keep a trace
+  var SCALE = 2;      // one canvas pixel per two CSS pixels
+
+  // The text boxes are held in DOCUMENT coordinates and measured only when the
+  // layout can have changed. Reading 21 rects on every scroll frame would
+  // force a layout each time; subtracting the scroll offset costs nothing.
+  var boxes = [];
+
+  function measure() {
+    var sx = scrollX, sy = scrollY;
+    boxes = [];
+    for (var i = 0; i < READ.length; i++) {
+      var els = document.querySelectorAll(READ[i]);
+      for (var j = 0; j < els.length; j++) {
+        var r = els[j].getBoundingClientRect();
+        if (r.width < 4 || r.height < 4) continue;
+        boxes.push({ l: r.left + sx, t: r.top + sy, r: r.right + sx, b: r.bottom + sy });
+      }
+    }
+  }
+
+  // Clearance from the cell's whole rectangle, not from its centre. A 64 px
+  // cell can have a centre well clear of a paragraph and still cover its
+  // first two lines; measuring the centre let exactly that through.
+  function damp(cl, ct, cr, cb, sx, sy) {
+    var best = Infinity;
+    for (var i = 0; i < boxes.length; i++) {
+      var q = boxes[i];
+      var ql = q.l - sx, qt = q.t - sy, qr = q.r - sx, qb = q.b - sy;
+      var dx = cl > qr ? cl - qr : (ql > cr ? ql - cr : 0);
+      var dy = ct > qb ? ct - qb : (qt > cb ? qt - cb : 0);
+      var d = dx && dy ? Math.sqrt(dx * dx + dy * dy) : (dx || dy);
+      if (d < best) { best = d; if (best === 0) return QUIET; }
+    }
+    if (best >= FEATHER) return 1;
+    var t = best / FEATHER;
+    return QUIET + (1 - QUIET) * (t * t * (3 - 2 * t));   // smoothstep
+  }
+
+  // A slow, per-cell brightness wobble driven by the scroll position.
+  //
+  // The phase and the rate come from a position hash rather than from the
+  // PRNG: drawing them from the stream would shift every later draw and
+  // rearrange the whole pattern. Each cell therefore keeps its own phase for
+  // good, and neighbours drift apart instead of breathing in unison.
+  //
+  // It is a function of the scroll offset and nothing else, so it holds still
+  // the moment you stop scrolling. Nothing here animates on its own.
+  var WOBBLE = .26;    // peak deviation, so roughly plus or minus a quarter
+  var PITCH = 1200;    // px of scroll for one cycle, before the per-cell rate.
+                       // Deep and slow: the two together set how fast it
+                       // changes as you scroll, and that rate is WOBBLE/PITCH,
+                       // so the longer pitch more than cancels the bigger
+                       // amplitude. Over a short scroll it is calmer than
+                       // before; over a long one the swing is wider.
+
+  function hash(x, y, k) {
+    var h = Math.sin(x * 12.9898 + y * 78.233 + k * 37.719) * 43758.5453;
+    return h - Math.floor(h);
+  }
+
+  function wobble(x, y, sy) {
+    var phase = hash(x, y, 1) * 6.2831853;
+    var rate = 0.7 + hash(x, y, 2) * 0.7;          // 0.7x to 1.4x the pitch
+    return 1 + WOBBLE * Math.sin(sy / (PITCH * rate) * 6.2831853 + phase);
+  }
+
+  function pick(r) {
+    var acc = 0;
+    for (var i = 0; i < COLS.length; i++) { acc += COLS[i].w; if (r <= acc) return COLS[i]; }
+    return COLS[0];
+  }
+
+  function draw() {
+    var box = cv.getBoundingClientRect();
+    var CW = Math.max(1, Math.round(box.width)), CH = Math.max(1, Math.round(box.height));
+    var bw = Math.ceil(CW / SCALE), bh = Math.ceil(CH / SCALE);
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    ctx.clearRect(0, 0, bw, bh);
+
+    // The lattice, the clumping field and the seed are all anchored to the
+    // viewport, so which cells exist never changes. Only how much of each one
+    // survives does, and that is what the scrolling text decides.
+    var sx = scrollX, sy = scrollY;
+    var rnd = mulberry32(0x5eed1a17);
+
+    for (var L = 0; L < LEVELS.length; L++) {
+      var lv = LEVELS[L], c = lv.cell / SCALE;
+      for (var y = 0; y < CH; y += lv.cell) {
+        for (var x = 0; x < CW; x += lv.cell) {
+          if (rnd() > lv.p * (0.15 + 2.3 * lump(x, y))) continue;
+          var a = lv.lo + rnd() * (lv.hi - lv.lo);
+          var col = pick(rnd());
+          var g = damp(x, y, x + lv.cell, y + lv.cell, sx, sy);
+          if (g < .04) continue;
+          // ceiling tracks the wobble so the peaks are not clipped:
+          // the brightest amber reaches .285 x 1.26
+          var alpha = Math.min(.36, a * col.k * g * wobble(x, y, sy));
+          ctx.fillStyle = 'rgba(' + col.c + ',' + alpha.toFixed(3) + ')';
+          ctx.fillRect(x / SCALE + 1, y / SCALE + 1, c - 2, c - 2);
+        }
+      }
+    }
+  }
+
+  measure();
+  draw();
+
+  // That first measurement runs while the page can still grow: images and
+  // fonts are not in yet, and a panel that ships as `hidden` only appears when
+  // its own script runs. Any later change in height moves the text away from
+  // the holes cut for it, which shows up as background cells sitting behind
+  // paragraphs further down the page. So measure again whenever the document
+  // can have changed size. Re-measuring only paints, it never reflows, so
+  // observing the body cannot feed itself.
+  function remeasure() { measure(); draw(); }
+  addEventListener('load', remeasure);
+  if (window.ResizeObserver && document.body) {
+    var rt = null;
+    new ResizeObserver(function () {
+      clearTimeout(rt);
+      rt = setTimeout(remeasure, 80);
+    }).observe(document.body);
+  }
+
+  var queued = false;
+  addEventListener('scroll', function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () { queued = false; draw(); });
+  }, { passive: true });
+
+  var t = null;
+  addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(function () { measure(); draw(); }, 150);
+  });
+})();
+</script>
+</body>
+</html>
