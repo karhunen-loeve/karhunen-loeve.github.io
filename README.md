@@ -10,11 +10,11 @@ icons and the preview cards are the exception and live in `images/`.
 | `index.html` | Series landing page |
 | `01-rgb-bgr-the-blue-face-bug.html` | Part 1: The Blue Face Bug |
 | `02-gamma-blind-interpolation.html` | Part 2: 128 Is Not the Middle |
-| `03-pyramids-and-scale-space.html` | Part 3: Climbing the Pyramid. Held back, not on `main` |
+| `03-pyramids-and-scale-space.html` | Part 3: Climbing the Pyramid |
 | `404.html` | What Pages serves for any address that is not here |
 | `tools/` | Browser tools: computer vision running client-side on WebAssembly |
 | `feed.xml` | Atom feed |
-| `sitemap.xml` | The live pages, with dates stamped alongside the posts |
+| `sitemap.xml` | The six pages, with dates stamped alongside the posts |
 | `robots.txt` | Nothing excluded; exists to name the sitemap |
 | `llms.txt` | What the site is, in prose, for a language model that looks |
 | `images/` | The external assets: figures, the portrait, the six preview cards |
@@ -103,12 +103,11 @@ Two decisions are worth knowing before touching those pages:
 
 ## Publishing
 
-1. **Check that the API in the posts is released.** `tools/fast-corners.html`
-   links `SegmentTest` on docs.rs and Part 3 shows the pyramid API, both of
+1. **Check that the API in the posts is released.** Part 3 shows the pyramid
+   API and `tools/fast-corners.html` links `SegmentTest` on docs.rs, both of
    which arrived in 0.4.0. That version has been on crates.io since
    2026-09-05, so this gate is met; it only reopens if a later post reaches
-   for something newer than the latest release, which is one of the reasons a
-   post can end up held back.
+   for something newer than the latest release.
 2. **Move the tree onto `main`,** which is where Pages deploys from, and stamp
    it *there*. The order matters and is not the obvious one.
 
@@ -130,9 +129,6 @@ Two decisions are worth knowing before touching those pages:
    git checkout develop -- .
    ```
 
-   If a post is held back, it comes out of the tree here, before anything is
-   stamped. See *Holding a post back* below.
-
 3. **Stamp the dates.** The posts, the feed and the sitemap carry `@@DATE1@@`
    and `@@HUMAN1@@` placeholders so an invalid date can never reach a feed
    reader. The date is stamped as noon UTC, so the machine-readable date and
@@ -140,12 +136,8 @@ Two decisions are worth knowing before touching those pages:
    in:
 
    ```powershell
-   ./stamp-dates.ps1 -Date1 2026-09-11 -Date2 2026-09-11
+   ./stamp-dates.ps1 -Date1 2026-08-18 -Date2 2026-08-18 -Date3 2026-08-18
    ```
-
-   One `-DateN` per post that is going out. `-Date3` is optional and stays
-   omitted while Part 3 is held back, since its placeholders are not in this
-   tree.
 
 4. **Refuse to publish with a placeholder left.** This is the one step whose
    failure is both silent and public: a live byline reading `@@HUMAN2@@`. The
@@ -159,15 +151,13 @@ Two decisions are worth knowing before touching those pages:
    ```
 
 5. **Commit and push.** `git diff develop main` is expected to be non-empty
-   now. With nothing held back it contains only the stamped dates; with a post
-   held back it also shows that post's file and its preview card, present on
-   `develop` and absent here. Read it before pushing; it is the shortest
-   complete description of what goes live.
+   now, and to contain nothing but the stamped dates. Read it before pushing;
+   it is the shortest complete description of what goes live.
 
    ```sh
    git add -A
    git commit -m "Publish"
-   git diff develop main            # stamped dates, plus any held-back post
+   git diff develop main            # dates only, nothing else
    git push origin main
    git checkout develop             # placeholders here are untouched
    ```
@@ -203,56 +193,18 @@ Two decisions are worth knowing before touching those pages:
 
    **Fed from `feed.xml`, so they arrive all at once:** the Atom subscribers,
    and daily.dev, which onboards a source from its feed. Registering the feed
-   pulls in whatever it holds at that moment, which for this push is Parts 1
-   and 2 on one date. Worth confirming when you set daily.dev up rather than
-   taking this on trust. It costs nothing: feed audiences are small and
-   self-selected, and the reach comes from the hand-submitted list above.
-
-   Because Part 3 is held back, it enters the feed as a genuinely new entry on
-   its own publishing push. The feed audience gets a second arrival instead of
-   three posts landing on one date.
+   pulls in whatever it holds at that moment, which after publication is all
+   three posts on one date. Worth confirming when you set daily.dev up rather
+   than taking this on trust, but plan for the whole series landing there
+   together. It costs nothing: feed audiences are small and self-selected, and
+   the reach comes from the hand-submitted list above.
 
    One thing has no way back. Once the feed has gone out with a date, do not
    move `<published>` afterwards: the entry ids stay the same, and a
    retroactively shifted date is exactly the kind of quiet wrongness the date
-   placeholders exist to prevent. Whether a post gets a date of its own has to
-   be decided before its publishing push, not after it.
-
-## Holding a post back
-
-Held back as of 2026-09-10: **Part 3, `03-pyramids-and-scale-space.html`.** The
-prose is finished, the fovea code at the end of it is not, so it does not go out
-with Parts 1 and 2.
-
-The file stays on `develop`, with its `@@DATE3@@` placeholders intact. What is
-removed on `develop` is everything that would point a reader or a crawler at it:
-its entry in `feed.xml` and in `sitemap.xml`, its URL in the landing page's
-JSON-LD, its item on the 404 page, its bullet in `llms.txt`, and its link in the
-series navigation of Parts 1 and 2. Its card on the landing page stays, as a
-`card draft` marked `in review`, so the series still reads as three parts.
-
-Three dates elsewhere mean "publication day" rather than "Part 3": the `lastmod`
-of `/`, of `/tools/` and of `/tools/fast-corners.html`. So does the feed-level
-`<updated>`. All four point at `@@DATE2@@` while Part 3 is held, and back at
-`@@DATE3@@` once it goes out.
-
-In the publishing move, after `git checkout develop -- .`, take the two files
-that must not go live out of the tree:
-
-```sh
-git rm -q --cached 03-pyramids-and-scale-space.html images/og-03.png
-rm 03-pyramids-and-scale-space.html images/og-03.png
-```
-
-`images/og-03.png` is referenced by that post and by nothing else. Leaving the
-post in the tree and merely unlinked is not enough: an unlinked page is still
-served by Pages to anyone who guesses the address or is told it.
-
-**Releasing it later is one revert.** The hold is a single commit on `develop`,
-so reverting that commit restores the feed entry, the sitemap entry, the JSON-LD
-URL, the 404 item, the `llms.txt` bullet, the two navigation links and the live
-card in one step. Then publish as above, with `-Date3` set to that day and the
-two lines above dropped from the move.
+   placeholders exist to prevent. If the series ever wants three separate
+   dates rather than three separate announcements, that has to be decided
+   before the publishing push, not after it.
 
 ## Custom domain
 
