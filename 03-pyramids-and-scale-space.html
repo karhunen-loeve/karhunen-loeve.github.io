@@ -178,6 +178,107 @@
   .byline { color: var(--muted); font-size: .85rem; margin: 0 0 2.6rem; }
   .byline a { color: var(--accent); text-decoration: none; }
   .byline a:hover { text-decoration: underline; }
+
+  /* ---------- Figs. 1 to 6 on a phone ----------
+     Below 38rem the drawings pan, and for these six that crops the thing each
+     one exists to show: the staircase of levels under a detector that never
+     changes, the round trip that comes back the wrong size, the two axes, the
+     grid, the drift, the two footprints. So where a drawing would start to pan
+     it gives way to a second rendering of the same content laid out for a
+     column: HTML where the figure is boxes and labels (Figs. 2 and 4), the
+     same drawing redrawn on a 340 unit canvas with its prose moved to a key
+     beneath (Figs. 1, 5 and 6), a grid of four small canvases where it is a
+     matrix (Fig. 3). Real text at rem sizes never gets too small, the colours
+     come from the same variables as the rest of the page, so the print palette
+     needs nothing extra, and the switch is `screen` only: paper is wide, and
+     the print rules already let the drawings out of their scroll box. Each
+     copy carries its drawing's accessible name, since display: none takes the
+     other out of the accessibility tree as well.
+
+     40.5rem is the drawing's 38rem plus the article's 1.25rem of padding on
+     either side: the viewport width at which the scroll box would first move,
+     so there is no band where a drawing pans although its stack exists. */
+  .fig-narrow { display: none; }
+  @media screen and (max-width: 40.5rem) {
+    .fig-wide { display: none; }
+    .fig-narrow {
+      display: block; padding: 1.1rem 1rem 1rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    }
+    .fig-narrow code { background: none; padding: 0; }
+
+    /* A redrawn canvas is an svg inside a figure, so the panel border and the
+       38rem floor above would land on it a second time. Both are undone here.
+       Capped so that just under the switch, where the column is still 600px
+       wide, a 340 unit drawing is not blown up to nearly twice its size. */
+    .fig-narrow .plot {
+      display: block; width: 100%; max-width: 26rem; min-width: 0; height: auto;
+      margin: 0 auto; background: none; border: 0; border-radius: 0;
+    }
+    /* The two pyramids are several times as tall as they are wide, so they get
+       a tighter cap: a wider one buys detail nobody needs and costs a
+       screenful of scrolling. */
+    .fig-narrow .plot.tall { max-width: 21rem; }
+
+    /* Where prose leaves a drawing it lands in one of these, and all three
+       wrap: a lead line above, a key with one line per level, a note under. */
+    .fig-narrow .lead { margin: 0 0 .7rem; color: var(--ink-2); font-size: .8rem; line-height: 1.45; }
+    .fig-narrow .key { list-style: none; margin: .9rem 0 0; padding: 0; color: var(--ink-2); font-size: .85rem; line-height: 1.5; }
+    .fig-narrow .key li + li { margin-top: .25rem; }
+    .fig-narrow .key b { color: var(--ink); font-weight: 600; }
+    .fig-narrow .note { margin: .8rem 0 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+    .fig-narrow .ax { margin: 0; color: var(--ink-2); font-size: .8rem; font-weight: 600; }
+    .fig-narrow .ax + .ax { margin: .1rem 0 .9rem; }
+
+    /* Fig. 2. Three boxes and two arrows, which is a stack already; it only
+       ran left to right because there was room. The widths keep the drawing's
+       proportions, so 51 still reads as half of 101. */
+    .fig-narrow .flow { text-align: center; }
+    .fig-narrow .box {
+      width: 70%; margin: 0 auto; padding: .55rem 0; border-radius: 6px;
+      background: var(--fill-soft); border: 1px solid var(--border);
+      font-family: var(--mono); font-size: .95rem; color: var(--ink);
+    }
+    .fig-narrow .box.half { width: 38%; }
+    .fig-narrow .box.wrong { width: 54%; background: none; color: var(--bad); border: 2px dashed var(--bad); }
+    .fig-narrow .arrow { margin: .4rem 0; color: var(--muted); font-size: .8rem; }
+    .fig-narrow .arrow::before { content: "\2193"; display: block; font-size: 1.1rem; line-height: 1.2; }
+    .fig-narrow .errline { margin: 1.1rem 0 0; color: var(--bad); font-family: var(--mono); font-size: .78rem; line-height: 1.5; }
+
+    /* Fig. 3. The matrix stays a matrix: four cells stacked in one column
+       would throw away the one thing it argues, that the two axes are
+       independent. Each cell carries its own defs, because two patterns of the
+       same id in one document are one pattern. */
+    .fig-narrow .grid4 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem .7rem; }
+    .fig-narrow .grid4 svg {
+      display: block; width: 100%; min-width: 0; height: auto;
+      background: none; border: 0; border-radius: 0;
+    }
+    .fig-narrow .grid4 .cap { margin: .4rem 0 0; color: var(--ink); font-size: .8rem; font-weight: 600; line-height: 1.35; }
+    .fig-narrow .grid4 .sub { margin: .2rem 0 0; color: var(--muted); font-size: .72rem; line-height: 1.35; }
+
+    /* Fig. 4. Three octaves as rows, three layers as columns, and the rows
+       still halve in width. min-width keeps a cell from shrinking past its own
+       sigma value on the narrowest phone, where the percentage alone would. */
+    .fig-narrow .sift { display: grid; grid-template-columns: 1.5rem repeat(3, 1fr); gap: .35rem .3rem; align-items: center; }
+    .fig-narrow .sift .oct { color: var(--muted); font-family: var(--mono); font-size: .75rem; }
+    .fig-narrow .sift .cell {
+      padding: .45rem .2rem; border-radius: 4px; text-align: center; white-space: nowrap;
+      background: var(--fill-soft); border: 1px solid var(--border);
+      font-family: var(--mono); font-size: .66rem; color: var(--ink); min-width: 3.7rem;
+    }
+    .fig-narrow .sift .oc1 { width: 78%; }
+    .fig-narrow .sift .oc2 { width: 60%; }
+
+    /* Fig. 6. Two panels one under the other, each with its heading above and
+       its verdict below, so nothing has to sit beside the row of pixels. */
+    .fig-narrow .panel + .panel { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid var(--hairline); }
+    .fig-narrow .panel-title { margin: 0; color: var(--ink); font-size: .85rem; font-weight: 600; line-height: 1.4; }
+    .fig-narrow .panel-sub { margin: .2rem 0 .6rem; color: var(--muted); font-size: .78rem; line-height: 1.4; }
+    .fig-narrow .verdict { margin: .5rem 0 0; text-align: center; font-family: var(--mono); font-size: .8rem; }
+    .fig-narrow .verdict.ok { color: var(--good); }
+    .fig-narrow .verdict.off { color: var(--bad); }
+  }
   /* ---------- print ---------- */
   /* A browser leaves backgrounds out of a printout and keeps text colours,
      and this palette is light ink on a dark ground. Printing part 2 gave a
@@ -548,7 +649,7 @@
 <p>Your detector looks for a face 40 pixels wide. The face in the photo is 400 pixels wide. Nobody retrains the detector. You shrink the <em>image</em>: half size, quarter size, eighth size, and run the same detector on every level. Stack the levels and you get the data structure every vision textbook opens with:</p>
 
 <figure>
-<svg viewBox="0 0 680 512" role="img" aria-label="An image pyramid of four levels, each half the width and height of the one below it, drawn with a pixel grid so the halving is visible: 32 by 24 pixels, then 16 by 12, 8 by 6 and 4 by 3. A circular object sits in the middle of every level and shrinks with it. The same fixed-size detector box is drawn at every level; it is too small for the object at the bottom two levels, matches it at the third, and is larger than the object at the top.">
+<svg class="fig-wide" viewBox="0 0 680 512" role="img" aria-label="An image pyramid of four levels, each half the width and height of the one below it, drawn with a pixel grid so the halving is visible: 32 by 24 pixels, then 16 by 12, 8 by 6 and 4 by 3. A circular object sits in the middle of every level and shrinks with it. The same fixed-size detector box is drawn at every level; it is too small for the object at the bottom two levels, matches it at the third, and is larger than the object at the top.">
   <defs>
     <pattern id="px" width="10" height="10" patternUnits="userSpaceOnUse">
       <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
@@ -594,6 +695,55 @@
   <text x="512" y="300" class="svg-ink2 notranslate" font-size="12.5" translate="no">the detector never</text>
   <text x="512" y="318" class="svg-ink2 notranslate" font-size="12.5" translate="no">changes size: 26×26 px</text>
 </svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="An image pyramid of four levels, each half the width and height of the one below it, drawn with a pixel grid so the halving is visible: 32 by 24 pixels, then 16 by 12, 8 by 6 and 4 by 3. A circular object sits in the middle of every level and shrinks with it. The same fixed-size detector box is drawn at every level; it is too small for the object at the bottom two levels, matches it at the third, and is larger than the object at the top.">
+  <p class="lead">The detector never changes size: 26×26 px. The object shrinks with the level.</p>
+  <svg class="plot tall" viewBox="0 0 340 566">
+    <defs>
+      <pattern id="pxn" width="10" height="10" patternUnits="userSpaceOnUse">
+        <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
+      </pattern>
+    </defs>
+    <text x="10" y="18" class="svg-muted notranslate" font-size="12" translate="no">level 3: ⅛</text>
+    <g>
+      <rect x="150" y="26" width="40" height="30" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="170" cy="41" r="6.5" fill="var(--accent)" opacity="0.8"/>
+      <rect x="150" y="26" width="40" height="30" fill="url(#pxn)" stroke="var(--border)"/>
+      <rect x="157" y="28" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    </g>
+    <text x="10" y="76" class="svg-muted notranslate" font-size="12" translate="no">level 2: ¼</text>
+    <g>
+      <rect x="130" y="84" width="80" height="60" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="170" cy="114" r="13" fill="var(--accent)" opacity="0.8"/>
+      <rect x="130" y="84" width="80" height="60" fill="url(#pxn)" stroke="var(--border)"/>
+      <rect x="157" y="101" width="26" height="26" fill="none" stroke="var(--good)" stroke-width="2"/>
+    </g>
+    <text x="10" y="164" class="svg-muted notranslate" font-size="12" translate="no">level 1: ½</text>
+    <g>
+      <rect x="90" y="172" width="160" height="120" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="170" cy="232" r="26" fill="var(--accent)" opacity="0.8"/>
+      <rect x="90" y="172" width="160" height="120" fill="url(#pxn)" stroke="var(--border)"/>
+      <rect x="157" y="219" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    </g>
+    <text x="10" y="312" class="svg-muted notranslate" font-size="12" translate="no">level 0: full</text>
+    <g>
+      <rect x="10" y="320" width="320" height="240" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="170" cy="440" r="52" fill="var(--accent)" opacity="0.8"/>
+      <rect x="10" y="320" width="320" height="240" fill="url(#pxn)" stroke="var(--border)"/>
+      <rect x="157" y="427" width="26" height="26" fill="none" stroke="var(--bad)" stroke-width="2"/>
+    </g>
+  </svg>
+  <ul class="key">
+    <li><b>level 3 · ⅛:</b> object smaller than the detector ✗</li>
+    <li><b>level 2 · ¼:</b> detector matches the object ✓</li>
+    <li><b>level 1 · ½:</b> object still too large ✗</li>
+    <li><b>level 0 · full:</b> object much too large ✗</li>
+  </ul>
+</div>
 <figcaption>Fig. 1. An image pyramid. The detector never changes size; the world does. Somewhere on the staircase, every object passes through the size your detector understands.</figcaption>
 </figure>
 
@@ -604,7 +754,7 @@
 <p>First trap, and a recurring question on every programming forum: take a 101-pixel-wide image down one level, then bring it back up.</p>
 
 <figure>
-<svg viewBox="0 0 680 250" role="img" aria-label="Downscaling 101 pixels gives 51, doubling back up gives 102, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
+<svg class="fig-wide" viewBox="0 0 680 250" role="img" aria-label="Downscaling 101 pixels gives 51, doubling back up gives 102, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
   <g font-size="14">
     <rect x="50"  y="60" width="202" height="70" rx="6" fill="var(--fill-soft)" stroke="var(--border)"/>
     <text x="151" y="100" text-anchor="middle" class="mono svg-ink notranslate" translate="no">101 px</text>
@@ -621,6 +771,22 @@
   <text x="340" y="208" text-anchor="middle" class="svg-ink2 notranslate" font-size="12.5" translate="no">…or worse: no error, and your difference image is silently misaligned.</text>
   <defs><marker id="arr3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
 </svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="Downscaling 101 pixels gives 51, doubling back up gives 102, which does not match the original 101. Subtracting the images fails with a size mismatch error.">
+  <div class="flow">
+    <p class="box">101 px</p>
+    <p class="arrow">÷2</p>
+    <p class="box half">51 px</p>
+    <p class="arrow">×2</p>
+    <p class="box wrong">102 px ≠ 101</p>
+  </div>
+  <p class="errline">error: (-209) sizes of input arguments do not match</p>
+  <p class="note">…or worse: no error, and your difference image is silently misaligned.</p>
+</div>
 <figcaption>Fig. 2. Half of 101 is not a whole number. Whichever way the library rounds, the down-step forgets whether its parent was odd, so the up-step reconstructs the wrong size. Every tutorial demo uses 512×512 and works; your first real photo doesn’t.</figcaption>
 </figure>
 
@@ -633,7 +799,7 @@
 <p>Remember the two operations, blur and shrink? Most libraries fuse them into one function and call the result “scale.” But they are <em>different axes</em>, and you can move along each independently:</p>
 
 <figure>
-<svg viewBox="0 0 680 420" role="img" aria-label="A two-by-two matrix. Horizontal axis: resolution shrinks. Vertical axis: blur grows. Top-left the original image; top-right the same content at half resolution, a mipmap level; bottom-left the same resolution with detail smoothed away, a scale stack; bottom-right both at once, a Gaussian pyramid level.">
+<svg class="fig-wide" viewBox="0 0 680 420" role="img" aria-label="A two-by-two matrix. Horizontal axis: resolution shrinks. Vertical axis: blur grows. Top-left the original image; top-right the same content at half resolution, a mipmap level; bottom-left the same resolution with detail smoothed away, a scale stack; bottom-right both at once, a Gaussian pyramid level.">
   <defs>
     <!-- One tile of content, used at two scales. Halving resolution has to
          redraw the same content smaller; drawing fewer tiles of the same size
@@ -687,6 +853,78 @@
     <text x="460" y="414" text-anchor="middle" class="svg-muted notranslate" font-size="11.5" translate="no">the “classic”, but only one cell of four</text>
   </g>
 </svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="A two-by-two matrix. Horizontal axis: resolution shrinks. Vertical axis: blur grows. Top-left the original image; top-right the same content at half resolution, a mipmap level; bottom-left the same resolution with detail smoothed away, a scale stack; bottom-right both at once, a Gaussian pyramid level.">
+  <p class="ax">columns → resolution shrinks</p>
+  <p class="ax">rows ↓ blur grows</p>
+  <div class="grid4">
+    <div>
+      <svg viewBox="0 0 168 120" aria-hidden="true">
+        <defs>
+          <pattern id="t1n" width="16" height="16" patternUnits="userSpaceOnUse">
+          <rect width="16" height="16" fill="var(--fill-soft)"/>
+          <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+          <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+          </pattern>
+        </defs>
+        <rect x="4" y="4" width="160" height="112" fill="url(#t1n)"/>
+        <rect x="4" y="4" width="160" height="112" fill="none" stroke="var(--border)"/>
+      </svg>
+      <p class="cap">original</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 168 120" aria-hidden="true">
+        <defs>
+          <pattern id="t2n" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="scale(0.5)">
+          <rect width="16" height="16" fill="var(--fill-soft)"/>
+          <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+          <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+          </pattern>
+        </defs>
+        <rect x="4" y="4" width="80" height="56" fill="url(#t2n)"/>
+        <rect x="4" y="4" width="80" height="56" fill="none" stroke="var(--border)"/>
+      </svg>
+      <p class="cap">shrink only</p>
+      <p class="sub">GPU mipmaps · “stride” in deep nets</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 168 120" aria-hidden="true">
+        <defs>
+          <pattern id="t3n" width="16" height="16" patternUnits="userSpaceOnUse">
+          <rect width="16" height="16" fill="var(--fill-soft)"/>
+          <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+          <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+          </pattern>
+          <filter id="t3n-b"><feGaussianBlur stdDeviation="2.6"/></filter>
+        </defs>
+        <rect x="4" y="4" width="160" height="112" fill="url(#t3n)" filter="url(#t3n-b)"/>
+        <rect x="4" y="4" width="160" height="112" fill="none" stroke="var(--border)"/>
+      </svg>
+      <p class="cap">blur only: “scale stack”</p>
+      <p class="sub">blob detection · registration (often the best choice!)</p>
+    </div>
+    <div>
+      <svg viewBox="0 0 168 120" aria-hidden="true">
+        <defs>
+          <pattern id="t4n" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform="scale(0.5)">
+          <rect width="16" height="16" fill="var(--fill-soft)"/>
+          <circle cx="4" cy="4" r="2.6" fill="var(--accent)"/>
+          <rect x="9" y="9" width="5" height="5" fill="var(--accent-2)"/>
+          </pattern>
+          <filter id="t4n-b"><feGaussianBlur stdDeviation="1.3"/></filter>
+        </defs>
+        <rect x="4" y="4" width="80" height="56" fill="url(#t4n)" filter="url(#t4n-b)"/>
+        <rect x="4" y="4" width="80" height="56" fill="none" stroke="var(--border)"/>
+      </svg>
+      <p class="cap">both: Gaussian pyramid</p>
+      <p class="sub">the “classic”, but only one cell of four</p>
+    </div>
+  </div>
+</div>
 <figcaption>Fig. 3. Blur and shrink are orthogonal. All four combinations exist and all four are used in serious systems. A library with a single <code class="notranslate" translate="no">buildPyramid()</code> can express exactly one of them, and gives you no word for the other three.</figcaption>
 </figure>
 
@@ -695,7 +933,7 @@
 <p>SIFT, the most famous algorithm in classical vision, finds keypoints you can recognize again in another photo. It needs <em>both axes at once</em>, as a grid: within each “octave” it keeps resolution fixed and steps the blur; between octaves it halves the resolution. The bookkeeping looks like this:</p>
 
 <figure>
-<svg viewBox="0 0 680 330" role="img" aria-label="The SIFT scale space as a grid: three octaves as rows with shrinking image width, three blur layers as columns; each cell labeled with its sigma value, growing along both axes.">
+<svg class="fig-wide" viewBox="0 0 680 330" role="img" aria-label="The SIFT scale space as a grid: three octaves as rows with shrinking image width, three blur layers as columns; each cell labeled with its sigma value, growing along both axes.">
   <defs><marker id="arr6" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--muted)"/></marker></defs>
   <!-- Axes as drawn arrows rather than glyphs in the labels: a rotated
        label turns its arrow with it, so the vertical one would point right. -->
@@ -741,6 +979,24 @@
   </g>
   <text x="370" y="302" text-anchor="middle" class="svg-muted notranslate" font-size="12.5" translate="no">a 2-D grid: (octave, layer), with σ growing smoothly across the whole thing: σ(o, l) = 1.6 · 2^(o + l/3)</text>
 </svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="The SIFT scale space as a grid: three octaves as rows with shrinking image width, three blur layers as columns; each cell labeled with its sigma value, growing along both axes.">
+  <p class="ax">columns → blur steps within an octave</p>
+  <p class="ax">rows ↓ octaves: resolution halves</p>
+  <div class="sift">
+    <span class="oct">o0</span>
+    <span class="cell">σ = 1.6</span><span class="cell">σ = 2.0</span><span class="cell">σ = 2.5</span>
+    <span class="oct">o1</span>
+    <span class="cell oc1">σ = 3.2</span><span class="cell oc1">σ = 4.0</span><span class="cell oc1">σ = 5.1</span>
+    <span class="oct">o2</span>
+    <span class="cell oc2">σ = 6.4</span><span class="cell oc2">σ = 8.1</span><span class="cell oc2">σ = 10.2</span>
+  </div>
+  <p class="note">a 2-D grid: (octave, layer), with σ growing smoothly across the whole thing: σ(o, l) = 1.6 · 2^(o + l/3)</p>
+</div>
 <figcaption>Fig. 4. SIFT’s scale space is a <em>grid</em>, not a chain. Same resolution across each row, same blur ratio down each column. Most libraries flatten this into one array and make you compute <code class="notranslate" translate="no">octave·(S+3)+layer</code> by hand, an off-by-one-octave bug generator with decades of forum history.</figcaption>
 </figure>
 
@@ -751,7 +1007,7 @@
 <p>You found your object at level 3. Now: <em>where is it in the original image?</em> Everyone writes the same line: <code class="notranslate" translate="no">x_full = x_level * 8</code>. And everyone ships a subtle lie, because that formula assumes a coarse pixel sits exactly where a full-resolution pixel sits, and depending on how the library shrinks, it usually doesn’t:</p>
 
 <figure>
-<svg viewBox="0 0 680 530" role="img" aria-label="A four-level image pyramid drawn with pixel grids. The object is detected on level 3, the smallest. Mapping that detection back to level 0 by multiplying by eight lands three and a half pixels short of the object; adding the half-pixel term that the averaging introduced lands on it.">
+<svg class="fig-wide" viewBox="0 0 680 530" role="img" aria-label="A four-level image pyramid drawn with pixel grids. The object is detected on level 3, the smallest. Mapping that detection back to level 0 by multiplying by eight lands three and a half pixels short of the object; adding the half-pixel term that the averaging introduced lands on it.">
   <defs>
     <pattern id="px2" width="10" height="10" patternUnits="userSpaceOnUse">
       <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
@@ -812,6 +1068,63 @@
   <text x="392" y="392" class="svg-muted notranslate" font-size="11.5" translate="no">the half pixel comes from how the</text>
   <text x="392" y="408" class="svg-muted notranslate" font-size="11.5" translate="no">level was built, not from rounding</text>
 </svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="A four-level image pyramid drawn with pixel grids. The object is detected on level 3, the smallest. Mapping that detection back to level 0 by multiplying by eight lands three and a half pixels short of the object; adding the half-pixel term that the averaging introduced lands on it.">
+  <svg class="plot tall" viewBox="0 0 340 496">
+    <defs>
+      <pattern id="px2n" width="10" height="10" patternUnits="userSpaceOnUse">
+        <path d="M10 0 L0 0 L0 10" fill="none" stroke="var(--hairline)" stroke-width="1"/>
+      </pattern>
+      <marker id="mapRn" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="var(--bad)"/></marker>
+    </defs>
+    <g>
+      <rect x="16" y="6" width="40" height="30" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="41" cy="21" r="3.5" fill="var(--accent)" opacity="0.8"/>
+      <rect x="16" y="6" width="40" height="30" fill="url(#px2n)" stroke="var(--border)"/>
+    </g>
+    <g>
+      <rect x="16" y="46" width="80" height="60" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="66" cy="76" r="6.5" fill="var(--accent)" opacity="0.8"/>
+      <rect x="16" y="46" width="80" height="60" fill="url(#px2n)" stroke="var(--border)"/>
+    </g>
+    <g>
+      <rect x="16" y="116" width="160" height="120" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="116" cy="176" r="13" fill="var(--accent)" opacity="0.8"/>
+      <rect x="16" y="116" width="160" height="120" fill="url(#px2n)" stroke="var(--border)"/>
+    </g>
+    <g>
+      <rect x="16" y="246" width="320" height="240" fill="var(--fill-soft)" stroke="var(--border)"/>
+      <circle cx="216" cy="366" r="26" fill="var(--accent)" opacity="0.8"/>
+      <rect x="16" y="246" width="320" height="240" fill="url(#px2n)" stroke="var(--border)"/>
+    </g>
+    <!-- the detection, on the level where the object fits the detector -->
+    <rect x="28" y="8" width="26" height="26" fill="none" stroke="var(--good)" stroke-width="2"/>
+    <!-- the naive map back down: out to the left, down, and in again. The
+         drawing stacks the levels, so one lane is enough for the one path
+         worth drawing; the honest map lands on the object and is the dot. -->
+    <path d="M28 21 L6 21 L6 331 L172 331" fill="none" stroke="var(--bad)" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#mapRn)"/>
+    <!-- the same doubling one level at a time: 0.5 px out on level 2,
+         1.5 on level 1, 3.5 by the bottom -->
+    <path d="M57 67 L65 75 M65 67 L57 75" stroke="var(--bad)" stroke-width="2"/>
+    <path d="M96 156 L106 166 M106 156 L96 166" stroke="var(--bad)" stroke-width="2"/>
+    <path d="M101 161 L116 176" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
+    <path d="M174 324 L188 338 M188 324 L174 338" stroke="var(--bad)" stroke-width="2.5"/>
+    <path d="M181 331 L216 366" stroke="var(--bad)" stroke-width="1" stroke-dasharray="3 3"/>
+    <circle cx="216" cy="366" r="3.5" fill="var(--good)"/>
+    <text x="192" y="318" class="mono svg-ink notranslate" font-size="12" translate="no">3.5 px off</text>
+  </svg>
+  <ul class="key">
+    <li><b>level 3 · 4×3 px:</b> detected at pixel (2, 1) ✓. Now, where is that in the full-size image?</li>
+    <li><b>level 2 · 8×6 px:</b> x·2 lands 0.5 px off</li>
+    <li><b>level 1 · 16×12 px:</b> x·4 lands 1.5 px off</li>
+    <li><b>level 0 · 32×24 px:</b> x·8 lands 3.5 px off ✗, x·8 + 3.5 lands on it ✓</li>
+  </ul>
+  <p class="note">Every step halves exactly, nothing here was rounded. The half pixel comes from how the level was built, not from rounding.</p>
+</div>
 <figcaption>Fig. 5. Found on level 3, reported in full-resolution coordinates. Multiplying by 8 assumes a coarse pixel sits exactly on a full-resolution one (Fig. 6); if the level averaged 2×2 blocks it sits half a pixel further in, and the drift doubles with every step down.</figcaption>
 </figure>
 
@@ -819,7 +1132,7 @@
 <p>Whether that multiplication is honest depends on how the level was made. A coarse pixel sits at the middle of the samples it came from, so the question is whether those samples <em>have</em> a middle. An odd, symmetric footprint does, and the coarse pixel inherits that sample&rsquo;s position, landing exactly on the fine grid. An even one does not, and the pixel lands on the boundary between two, half a pixel off. A 5-tap Gaussian is odd, which is why a proper Gaussian pyramid stays aligned; averaging 2×2 blocks is even, which is why it drifts, half a pixel at every step. And note that averaging a block <em>is</em> a kernel, an even-width one, so the developers most exposed to this are the ones who believe they are not filtering at all.</p>
 
 <figure>
-<svg viewBox="0 0 680 362" role="img" aria-label="Two ways to produce one coarse sample from a row of fine pixels. Above, a five-tap Gaussian: the taps are symmetric about a middle tap, so the coarse sample sits exactly on fine pixel 4. Below, an average of two samples: there is no middle tap, so the coarse sample sits between fine pixels 4 and 5, half a pixel off the grid.">
+<svg class="fig-wide" viewBox="0 0 680 362" role="img" aria-label="Two ways to produce one coarse sample from a row of fine pixels. Above, a five-tap Gaussian: the taps are symmetric about a middle tap, so the coarse sample sits exactly on fine pixel 4. Below, an average of two samples: there is no middle tap, so the coarse sample sits between fine pixels 4 and 5, half a pixel off the grid.">
   <text x="60" y="26" class="svg-ink notranslate" font-size="12.5" font-weight="600" translate="no">A · 5-tap Gaussian, then keep every second sample</text>
   <text x="60" y="44" class="svg-muted notranslate" font-size="11.5" translate="no">odd number of taps, so one of them is the middle one</text>
     <rect x="170" y="113" width="30" height="7" fill="var(--accent)" opacity="0.75"/>
@@ -875,6 +1188,74 @@
     <text x="310" y="348" text-anchor="middle" class="mono svg-ink notranslate" font-size="11.5" translate="no">sits between 4 and 5</text>
   <text x="530" y="309" class="svg-ink2 notranslate" font-size="12" translate="no">x · 2 + 0.5 ✗</text>
 </svg>
+<!-- The same figure for a phone column, see the Figs. 1 to 6 rules in the
+     style block. Only one of the two is displayed at any width, and
+     display: none takes the other out of the accessibility tree as well, so
+     this copy carries the drawing's accessible name and the figure is read
+     once whichever one is showing. -->
+<div class="fig-narrow" role="img" aria-label="Two ways to produce one coarse sample from a row of fine pixels. Above, a five-tap Gaussian: the taps are symmetric about a middle tap, so the coarse sample sits exactly on fine pixel 4. Below, an average of two samples: there is no middle tap, so the coarse sample sits between fine pixels 4 and 5, half a pixel off the grid.">
+  <div class="panel">
+    <p class="panel-title">A · 5-tap Gaussian, then keep every second sample</p>
+    <p class="panel-sub">odd number of taps, so one of them is the middle one</p>
+    <svg class="plot" viewBox="0 0 324 112" aria-hidden="true">
+      <rect x="77" y="39" width="28" height="7" fill="var(--accent)" opacity="0.75"/>
+      <rect x="111" y="19" width="28" height="27" fill="var(--accent)" opacity="0.75"/>
+      <rect x="145" y="6" width="28" height="40" fill="var(--accent)" opacity="0.75"/>
+      <rect x="179" y="19" width="28" height="27" fill="var(--accent)" opacity="0.75"/>
+      <rect x="213" y="39" width="28" height="7" fill="var(--accent)" opacity="0.75"/>
+      <rect x="6" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="40" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="74" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="108" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="142" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="176" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="210" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="244" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="278" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <circle cx="23" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="57" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="91" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="125" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="159" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="193" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="227" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="261" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="295" cy="57" r="2" fill="var(--muted)"/>
+      <path d="M153 88 L165 88 L159 78 z" fill="var(--accent)"/>
+      <text x="159" y="104" text-anchor="middle" class="mono svg-ink notranslate" font-size="11.5" translate="no">sits on fine 4</text>
+    </svg>
+    <p class="verdict ok">x · 2 exact ✓</p>
+  </div>
+  <div class="panel">
+    <p class="panel-title">B · average two samples, then keep every second</p>
+    <p class="panel-sub">even number of taps, so there is no middle one</p>
+    <svg class="plot" viewBox="0 0 324 112" aria-hidden="true">
+      <rect x="145" y="6" width="28" height="40" fill="var(--accent-2)" opacity="0.75"/>
+      <rect x="179" y="6" width="28" height="40" fill="var(--accent-2)" opacity="0.75"/>
+      <rect x="6" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="40" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="74" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="108" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="142" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="176" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="210" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="244" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <rect x="278" y="46" width="34" height="22" fill="var(--fill-soft)" stroke="var(--hairline)"/>
+      <circle cx="23" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="57" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="91" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="125" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="159" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="193" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="227" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="261" cy="57" r="2" fill="var(--muted)"/>
+      <circle cx="295" cy="57" r="2" fill="var(--muted)"/>
+      <path d="M170 88 L182 88 L176 78 z" fill="var(--accent-2)"/>
+      <text x="176" y="104" text-anchor="middle" class="mono svg-ink notranslate" font-size="11.5" translate="no">sits between 4 and 5</text>
+    </svg>
+    <p class="verdict off">x · 2 + 0.5 ✗</p>
+  </div>
+</div>
 <figcaption>Fig. 6. Which samples a level is built from decides where its pixels sit. Five taps have a middle tap and the coarse sample inherits its position, so the grids stay aligned and <code class="notranslate" translate="no">x·2</code> is exact. Two taps have no middle, so the sample lands on the edge between them. Odd footprints keep a pyramid on the grid; even ones shift it half a pixel, once per level.</figcaption>
 </figure>
 
