@@ -188,6 +188,8 @@
     font: 600 .75rem/1.4 var(--mono); letter-spacing: .04em;
     margin: .4rem 0 0; color: var(--ink-2);
   }
+  .credit { display: block; color: var(--muted); font-size: .78rem; margin-top: .5rem; }
+  .credit a { color: var(--muted); }
   @media (max-width: 34rem) { .pair { grid-template-columns: 1fr; } }
 
   /* ---------- Fig. 1 on a phone ----------
@@ -657,7 +659,8 @@ plt.imshow(img)      <span class="cmt"># ← everyone's face is now blue</span><
     <p class="lbl">what your code displayed</p>
   </div>
 </div>
-<figcaption>Fig. 2. The same file, twice. Nothing was recomputed: the pixels were relabelled as BGR and then converted honestly for display. The centre of the face reads <code class="notranslate" translate="no">[232, 178, 146]</code> in the file and arrives as <code class="notranslate" translate="no">[146, 178, 232]</code> on screen. A human spots this in two seconds. In production, no human looks.</figcaption>
+<figcaption>Fig. 2. The same file, twice. Nothing was recomputed: the pixels were relabelled as BGR and then converted honestly for display. The centre of the face reads <code class="notranslate" translate="no">[232, 178, 146]</code> in the file and arrives as <code class="notranslate" translate="no">[146, 178, 232]</code> on screen. A human spots this in two seconds. In production, no human looks.
+<span class="credit">Portrait: an AI stylisation of a photograph of the author.</span></figcaption>
 </figure>
 
 <p>Now remove the human. Feed that swapped image into a neural network, a color-based blob detector, a skin-tone filter, a white-balance routine. None of them crash. None of them warn. They return answers that look exactly like correct ones: a classifier trained on RGB quietly loses accuracy on BGR input, a "find the red marker" function finds blue markers, and nothing in any log file will ever tell you why.</p>
